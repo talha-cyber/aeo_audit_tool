@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/aeo_audit
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=True
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./reports:/app/reports
+
+  worker:
+    build: .
+    command: celery -A celery_worker worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/aeo_audit
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./reports:/app/reports
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: aeo_audit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data: 
