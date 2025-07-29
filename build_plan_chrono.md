@@ -8,20 +8,20 @@ This document outlines a clear, step-by-step roadmap for building the AEO Audit 
 
 *Goal: Create a thin but solid horizontal infrastructure slice. If this foundation shifts, every subsequent feature accrues technical debt.*
 
-- [ ] **① Finalize DB Schema & Create Alembic Migration v1**
-  - [ ] Define all tables (`clients`, `audit_configs`, `questions`, `audit_runs`, `responses`, `reports`) in SQLAlchemy models.
-  - [ ] Generate the initial Alembic migration script (`alembic revision --autogenerate`).
-- [ ] **② Implement `settings.py` via Pydantic**
-  - [ ] Create a typed, environment-driven configuration file that loads from `.env`.
-  - [ ] Ensure secrets are handled properly, preparing for vault integration.
-- [ ] **③ Setup Linters, Formatting, and Initial Tests**
-  - [ ] Configure `black` (formatting), `ruff`, and `mypy` (linting) with project standards.
-  - [ ] Implement pre-commit hooks to automate checks.
-  - [ ] Seed `tests/` with a basic Pydantic settings test and a DB migration test.
-- [ ] **④ Initial CI Pipeline**
-  - [ ] Create a GitHub Actions workflow that runs `pytest` on every push.
-  - [ ] Configure `pytest-cov` to generate and upload a `coverage.xml` report.
-  - [ ] Add a secret scanner (e.g., `trufflehog`) to the pipeline to fail builds with exposed secrets.
+- [x] **① Finalize DB Schema & Create Alembic Migration v1**
+  - [x] Define all tables (`clients`, `audit_configs`, `questions`, `audit_runs`, `responses`, `reports`) in SQLAlchemy models.
+  - [x] Generate the initial Alembic migration script (`alembic revision --autogenerate`).
+- [x] **② Implement `settings.py` via Pydantic**
+  - [x] Create a typed, environment-driven configuration file that loads from `.env`.
+  - [x] Ensure secrets are handled properly, preparing for vault integration.
+- [x] **③ Setup Linters, Formatting, and Initial Tests**
+  - [x] Configure `black` (formatting), `ruff`, and `mypy` (linting) with project standards.
+  - [x] Implement pre-commit hooks to automate checks.
+  - [x] Seed `tests/` with a basic Pydantic settings test and a DB migration test.
+- [x] **④ Initial CI Pipeline**
+  - [x] Create a GitHub Actions workflow that runs `pytest` on every push.
+  - [x] Configure `pytest-cov` to generate and upload a `coverage.xml` report.
+  - [x] Add a secret scanner (e.g., `trufflehog`) to the pipeline to fail builds with exposed secrets.
 
 ---
 

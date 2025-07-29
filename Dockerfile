@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -17,6 +18,7 @@ RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY . .
+COPY alembic ./alembic
 
 # Create reports directory
 RUN mkdir -p reports

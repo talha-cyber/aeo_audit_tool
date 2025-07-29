@@ -1,0 +1,12 @@
+# Git
+.git
+
+# Virtual Environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS-specific
+.DS_Store

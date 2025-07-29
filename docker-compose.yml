@@ -22,6 +22,7 @@ services:
       - redis
     volumes:
       - ./reports:/app/reports
+      - ./alembic:/app/alembic
 
   worker:
     build: .
@@ -43,6 +44,7 @@ services:
       - redis
     volumes:
       - ./reports:/app/reports
+      - ./alembic:/app/alembic
 
   db:
     image: postgres:15

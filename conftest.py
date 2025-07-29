@@ -11,19 +11,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
-from starlette.testclient import TestClient
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
-# Fixture for the FastAPI test client
-@pytest.fixture(scope="module")
-def client() -> Generator:
-    from app.main import app
-
-    with TestClient(app) as c:
-        yield c
 
 
 # Fixture for the Celery app for testing
