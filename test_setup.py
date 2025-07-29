@@ -3,61 +3,58 @@
 Quick test script to verify the FastAPI app and Celery worker setup
 """
 
-def test_fastapi_import():
-    """Test that FastAPI app can be imported"""
-    try:
-        from app.main import app
-        print("✅ FastAPI app imported successfully")
-        return True
-    except ImportError as e:
-        print(f"❌ Failed to import FastAPI app: {e}")
-        return False
+import os
+import sys
+from typing import Generator
 
-def test_celery_import():
-    """Test that Celery worker can be imported"""
-    try:
-        from celery_worker import celery_app, test_task
-        print("✅ Celery worker imported successfully")
-        return True
-    except ImportError as e:
-        print(f"❌ Failed to import Celery worker: {e}")
-        return False
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
+from starlette.testclient import TestClient
 
-def test_health_endpoint():
-    """Test the health endpoint"""
-    try:
-        from fastapi.testclient import TestClient
-        from app.main import app
-        
-        client = TestClient(app)
-        response = client.get("/health")
-        
-        if response.status_code == 200 and response.json() == {"status": "ok"}:
-            print("✅ Health endpoint working correctly")
-            return True
-        else:
-            print(f"❌ Health endpoint failed: {response.status_code} - {response.json()}")
-            return False
-    except Exception as e:
-        print(f"❌ Health endpoint test failed: {e}")
-        return False
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-if __name__ == "__main__":
-    print("Testing AEO Audit Tool setup...\n")
-    
-    results = []
-    results.append(test_fastapi_import())
-    results.append(test_celery_import())
-    results.append(test_health_endpoint())
-    
-    print(f"\nResults: {sum(results)}/{len(results)} tests passed")
-    
-    if all(results):
-        print("\n🎉 All tests passed! Your setup is ready.")
-        print("\nNext steps:")
-        print("1. Create a .env file with your configuration")
-        print("2. Run: docker-compose up -d")
-        print("3. Visit: http://localhost:8000/health")
-        print("4. View API docs: http://localhost:8000/docs")
-    else:
-        print("\n⚠️  Some tests failed. Check the error messages above.") 
+
+# Fixture for the FastAPI test client
+@pytest.fixture(scope="module")
+def client() -> Generator:
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+
+
+# Fixture for the Celery app for testing
+@pytest.fixture(scope="module")
+def celery_app_fixture() -> tuple:
+    from celery_worker import celery_app, test_task
+
+    celery_app.conf.update(task_always_eager=True)
+    return celery_app, test_task
+
+
+# Fixture for an in-memory SQLite database for testing
+@pytest.fixture(scope="session")
+def db_engine() -> Generator:
+    """Yield a SQLAlchemy engine for an in-memory SQLite database."""
+    engine = create_engine("sqlite:///:memory:")
+    # Base.metadata.create_all(bind=engine)  # Create tables
+    yield engine
+    # Base.metadata.drop_all(bind=engine)  # Drop tables after tests
+
+
+@pytest.fixture(scope="function")
+def db_session(db_engine: Engine) -> Generator:
+    """Yield a database session for a single test function."""
+    connection = db_engine.connect()
+    transaction = connection.begin()
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=connection)
+    session = session_local()
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()

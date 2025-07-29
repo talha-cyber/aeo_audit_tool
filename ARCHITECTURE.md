@@ -129,7 +129,7 @@ CREATE TABLE clients (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- audit_configs table  
+-- audit_configs table
 CREATE TABLE audit_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id UUID REFERENCES clients(id),
@@ -190,16 +190,16 @@ from typing import List, Dict
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://user:pass@localhost/aeo_audit"
-    
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
-    
+
     # AI Platform APIs
     OPENAI_API_KEY: str
     ANTHROPIC_API_KEY: str
     PERPLEXITY_API_KEY: str
     GOOGLE_AI_API_KEY: str
-    
+
     # Rate Limiting (requests per minute)
     RATE_LIMITS: Dict[str, int] = {
         "openai": 50,
@@ -207,12 +207,12 @@ class Settings(BaseSettings):
         "perplexity": 20,
         "google_ai": 60
     }
-    
+
     # Application
     SECRET_KEY: str
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
-    
+
     class Config:
         env_file = ".env"
 
@@ -229,16 +229,16 @@ class AIRateLimiter:
     def __init__(self, requests_per_minute: int):
         self.requests_per_minute = requests_per_minute
         self.requests = []
-    
+
     async def acquire(self):
         now = time.time()
         # Remove requests older than 1 minute
         self.requests = [req_time for req_time in self.requests if now - req_time < 60]
-        
+
         if len(self.requests) >= self.requests_per_minute:
             sleep_time = 60 - (now - self.requests[0])
             await asyncio.sleep(sleep_time)
-        
+
         self.requests.append(now)
 
 class BasePlatform(ABC):
@@ -246,21 +246,21 @@ class BasePlatform(ABC):
         self.api_key = api_key
         self.rate_limiter = AIRateLimiter(rate_limit)
         self.platform_name = self.__class__.__name__.lower()
-    
+
     @abstractmethod
     async def query(self, question: str, **kwargs) -> Dict[str, Any]:
         """Execute query and return standardized response"""
         pass
-    
+
     @abstractmethod
     def extract_text_response(self, raw_response: Dict[str, Any]) -> str:
         """Extract clean text from platform-specific response format"""
         pass
-    
+
     async def safe_query(self, question: str, **kwargs) -> Dict[str, Any]:
         """Query with rate limiting and error handling"""
         await self.rate_limiter.acquire()
-        
+
         try:
             response = await self.query(question, **kwargs)
             return {
@@ -286,7 +286,7 @@ class OpenAIPlatform(BasePlatform):
     def __init__(self, api_key: str, rate_limit: int = 50):
         super().__init__(api_key, rate_limit)
         self.client = openai.AsyncOpenAI(api_key=api_key)
-    
+
     async def query(self, question: str, **kwargs) -> Dict[str, Any]:
         response = await self.client.chat.completions.create(
             model=kwargs.get("model", "gpt-4"),
@@ -295,7 +295,7 @@ class OpenAIPlatform(BasePlatform):
             temperature=kwargs.get("temperature", 0.1)
         )
         return response.model_dump()
-    
+
     def extract_text_response(self, raw_response: Dict[str, Any]) -> str:
         return raw_response["choices"][0]["message"]["content"]
 Phase 3: Brand Detection Engine (Week 5-6)
@@ -319,47 +319,47 @@ class BrandDetector:
     def __init__(self):
         # Load spaCy model for entity recognition
         self.nlp = spacy.load("en_core_web_sm")
-        
+
         # Common company suffixes for better matching
         self.company_suffixes = [
-            "Inc", "Corp", "Corporation", "LLC", "Ltd", "Limited", 
+            "Inc", "Corp", "Corporation", "LLC", "Ltd", "Limited",
             "Co", "Company", "Group", "Holdings", "Technologies"
         ]
-    
+
     def normalize_brand_name(self, brand: str) -> Set[str]:
         """Generate all possible variations of a brand name"""
         variations = {brand.lower()}
-        
+
         # Add variations with/without common suffixes
         base_name = brand
         for suffix in self.company_suffixes:
             if brand.endswith(f" {suffix}"):
                 base_name = brand[:-len(f" {suffix}")]
                 break
-        
+
         variations.add(base_name.lower())
         variations.add(f"{base_name} Inc".lower())
         variations.add(f"{base_name} Corp".lower())
-        
+
         # Add acronym if multiple words
         words = base_name.split()
         if len(words) > 1:
             acronym = "".join(word[0].upper() for word in words)
             variations.add(acronym.lower())
-        
+
         return variations
-    
+
     def detect_brands(self, text: str, target_brands: List[str]) -> Dict[str, BrandMention]:
         """Detect brand mentions in text with context and confidence"""
         doc = self.nlp(text)
         brand_mentions = defaultdict(lambda: {"count": 0, "contexts": [], "positions": []})
-        
+
         # Create normalized brand lookup
         brand_variations = {}
         for brand in target_brands:
             for variation in self.normalize_brand_name(brand):
                 brand_variations[variation] = brand
-        
+
         # Check named entities first
         for ent in doc.ents:
             if ent.label_ in ["ORG", "PERSON", "PRODUCT"]:
@@ -370,32 +370,32 @@ class BrandDetector:
                     brand_mentions[original_brand]["count"] += 1
                     brand_mentions[original_brand]["contexts"].append(context)
                     brand_mentions[original_brand]["positions"].append((ent.start_char, ent.end_char))
-        
+
         # Fallback to regex matching for missed mentions
         for brand in target_brands:
             for variation in self.normalize_brand_name(brand):
                 pattern = r'\b' + re.escape(variation) + r'\b'
                 matches = re.finditer(pattern, text, re.IGNORECASE)
-                
+
                 for match in matches:
                     # Avoid double-counting
                     start, end = match.span()
                     already_found = any(
                         abs(pos[0] - start) < 10 for pos in brand_mentions[brand]["positions"]
                     )
-                    
+
                     if not already_found:
                         context = self._extract_context(text, start, end)
                         brand_mentions[brand]["count"] += 1
                         brand_mentions[brand]["contexts"].append(context)
                         brand_mentions[brand]["positions"].append((start, end))
-        
+
         # Convert to BrandMention objects with sentiment
         result = {}
         for brand, data in brand_mentions.items():
             sentiment_score = self._calculate_sentiment(data["contexts"])
             confidence = self._calculate_confidence(brand, data["contexts"])
-            
+
             result[brand] = BrandMention(
                 brand=brand,
                 mentions=data["count"],
@@ -403,53 +403,53 @@ class BrandDetector:
                 sentiment_score=sentiment_score,
                 confidence=confidence
             )
-        
+
         return result
-    
+
     def _extract_context(self, text: str, start: int, end: int, window: int = 100) -> str:
         """Extract context around a brand mention"""
         context_start = max(0, start - window)
         context_end = min(len(text), end + window)
         return text[context_start:context_end].strip()
-    
+
     def _calculate_sentiment(self, contexts: List[str]) -> float:
         """Simple sentiment analysis of brand contexts"""
         # This is a simplified version - in production, use a proper sentiment model
         positive_words = ["best", "excellent", "great", "good", "recommend", "top", "leading"]
         negative_words = ["worst", "bad", "poor", "terrible", "avoid", "problems", "issues"]
-        
+
         total_score = 0
         for context in contexts:
             context_lower = context.lower()
             positive_count = sum(1 for word in positive_words if word in context_lower)
             negative_count = sum(1 for word in negative_words if word in context_lower)
-            
+
             if positive_count > 0 or negative_count > 0:
                 score = (positive_count - negative_count) / (positive_count + negative_count)
                 total_score += score
-        
+
         return total_score / len(contexts) if contexts else 0.0
-    
+
     def _calculate_confidence(self, brand: str, contexts: List[str]) -> float:
         """Calculate confidence score for brand detection"""
         # Higher confidence for:
         # - Exact case matches
         # - Mentions in business contexts
         # - Multiple mentions
-        
+
         confidence = 0.5  # Base confidence
-        
+
         # Boost for multiple mentions
         if len(contexts) > 1:
             confidence += 0.2
-        
+
         # Boost for business context keywords
         business_keywords = ["company", "software", "product", "service", "business"]
         for context in contexts:
             if any(keyword in context.lower() for keyword in business_keywords):
                 confidence += 0.1
                 break
-        
+
         return min(1.0, confidence)
 Phase 4: Question Engine (Week 7-8)
 4.1 Dynamic Question Generation
@@ -532,7 +532,7 @@ class QuestionEngine:
                 ]
             )
         ]
-        
+
         # Industry-specific question patterns
         self.industry_patterns = {
             "CRM": [
@@ -551,24 +551,24 @@ class QuestionEngine:
                 "Best project management for remote teams?"
             ]
         }
-    
-    def generate_questions(self, 
-                          client_brand: str, 
-                          competitors: List[str], 
+
+    def generate_questions(self,
+                          client_brand: str,
+                          competitors: List[str],
                           industry: str,
                           categories: List[QuestionCategory] = None) -> List[Dict[str, Any]]:
         """Generate comprehensive question set for audit"""
-        
+
         if categories is None:
             categories = list(QuestionCategory)
-        
+
         questions = []
-        
+
         # Generate from base templates
         for template in self.base_templates:
             if template.category not in categories:
                 continue
-                
+
             # Generate variations for each template
             for variation in template.variations:
                 question_data = {
@@ -579,7 +579,7 @@ class QuestionEngine:
                     "client_brand": client_brand,
                     "competitors": competitors
                 }
-                
+
                 # Generate actual questions
                 if "{industry}" in variation:
                     questions.append({
@@ -587,7 +587,7 @@ class QuestionEngine:
                         "question": variation.format(industry=industry),
                         "type": "industry_general"
                     })
-                
+
                 if "{brand}" in variation:
                     # Generate for client brand
                     questions.append({
@@ -596,7 +596,7 @@ class QuestionEngine:
                         "type": "brand_specific",
                         "target_brand": client_brand
                     })
-                    
+
                     # Generate for each competitor
                     for competitor in competitors:
                         questions.append({
@@ -605,7 +605,7 @@ class QuestionEngine:
                             "type": "competitor_specific",
                             "target_brand": competitor
                         })
-                
+
                 if "{competitor}" in variation:
                     for competitor in competitors:
                         questions.append({
@@ -614,7 +614,7 @@ class QuestionEngine:
                             "type": "alternative_seeking",
                             "target_brand": competitor
                         })
-        
+
         # Add industry-specific questions
         if industry in self.industry_patterns:
             for question in self.industry_patterns[industry]:
@@ -626,13 +626,13 @@ class QuestionEngine:
                     "client_brand": client_brand,
                     "competitors": competitors
                 })
-        
+
         return questions
-    
-    def prioritize_questions(self, questions: List[Dict[str, Any]], 
+
+    def prioritize_questions(self, questions: List[Dict[str, Any]],
                            max_questions: int = 100) -> List[Dict[str, Any]]:
         """Prioritize questions based on strategic value"""
-        
+
         # Priority scoring
         priority_weights = {
             "comparison": 10,      # High value - direct competitive intelligence
@@ -642,11 +642,11 @@ class QuestionEngine:
             "pricing": 5,          # Medium value - pricing intelligence
             "industry_specific": 7 # Medium-high value - targeted insights
         }
-        
+
         # Score each question
         for question in questions:
             base_score = priority_weights.get(question["category"], 5)
-            
+
             # Boost score for certain question types
             if question["type"] == "industry_general":
                 question["priority_score"] = base_score + 2
@@ -654,7 +654,7 @@ class QuestionEngine:
                 question["priority_score"] = base_score + 1
             else:
                 question["priority_score"] = base_score
-        
+
         # Sort by priority and return top questions
         sorted_questions = sorted(questions, key=lambda x: x["priority_score"], reverse=True)
         return sorted_questions[:max_questions]
@@ -678,14 +678,14 @@ class AuditProcessor:
         self.question_engine = QuestionEngine()
         self.brand_detector = BrandDetector()
         self.platforms = {}  # Will be populated with platform instances
-    
+
     def register_platform(self, name: str, platform: BasePlatform):
         """Register an AI platform for querying"""
         self.platforms[name] = platform
-    
+
     async def run_audit(self, audit_config_id: uuid.UUID) -> uuid.UUID:
         """Execute complete audit process"""
-        
+
         # Create audit run record
         audit_run = AuditRun(
             id=uuid.uuid4(),
@@ -695,18 +695,18 @@ class AuditProcessor:
         )
         self.db.add(audit_run)
         self.db.commit()
-        
+
         try:
             # Load configuration
             config = self.db.query(AuditConfig).filter(
                 AuditConfig.id == audit_config_id
             ).first()
-            
+
             if not config:
                 raise ValueError(f"Audit config {audit_config_id} not found")
-            
+
             logger.info(f"Starting audit run {audit_run.id} for client {config.client.name}")
-            
+
             # Generate questions
             questions = self.question_engine.generate_questions(
                 client_brand=config.client.name,
@@ -714,30 +714,30 @@ class AuditProcessor:
                 industry=config.client.industry,
                 categories=[cat for cat in config.question_categories]
             )
-            
+
             # Prioritize and limit questions
             priority_questions = self.question_engine.prioritize_questions(
                 questions, max_questions=200
             )
-            
+
             audit_run.total_questions = len(priority_questions) * len(config.platforms)
             self.db.commit()
-            
+
             # Process questions across all platforms
             results = await self._process_questions_batch(
                 audit_run.id, priority_questions, config
             )
-            
+
             # Update audit run status
             audit_run.status = "completed"
             audit_run.completed_at = datetime.utcnow()
             audit_run.processed_questions = len(results)
-            
+
             self.db.commit()
-            
+
             logger.info(f"Completed audit run {audit_run.id}")
             return audit_run.id
-            
+
         except Exception as e:
             logger.error(f"Audit run {audit_run.id} failed: {str(e)}")
             audit_run.status = "failed"
@@ -745,20 +745,20 @@ class AuditProcessor:
             audit_run.completed_at = datetime.utcnow()
             self.db.commit()
             raise
-    
-    async def _process_questions_batch(self, 
+
+    async def _process_questions_batch(self,
                                      audit_run_id: uuid.UUID,
                                      questions: List[Dict],
                                      config: AuditConfig) -> List[Dict]:
         """Process questions in batches across platforms"""
-        
+
         all_brands = [config.client.name] + config.client.competitors
         batch_size = 10  # Process 10 questions at a time
         results = []
-        
+
         for i in range(0, len(questions), batch_size):
             batch = questions[i:i + batch_size]
-            
+
             # Create tasks for all platform-question combinations
             tasks = []
             for question_data in batch:
@@ -771,53 +771,53 @@ class AuditProcessor:
                             target_brands=all_brands
                         )
                         tasks.append(task)
-            
+
             # Execute batch
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Filter successful results
             successful_results = [
-                result for result in batch_results 
+                result for result in batch_results
                 if not isinstance(result, Exception)
             ]
             results.extend(successful_results)
-            
+
             # Update progress
             audit_run = self.db.query(AuditRun).filter(
                 AuditRun.id == audit_run_id
             ).first()
             audit_run.processed_questions = len(results)
             self.db.commit()
-            
+
             # Small delay between batches to be respectful to APIs
             await asyncio.sleep(2)
-        
+
         return results
-    
-    async def _process_single_question(self, 
+
+    async def _process_single_question(self,
                                      audit_run_id: uuid.UUID,
                                      question_data: Dict,
                                      platform_name: str,
                                      target_brands: List[str]) -> Dict:
         """Process a single question on a single platform"""
-        
+
         platform = self.platforms[platform_name]
         question = question_data["question"]
-        
+
         try:
             # Query the platform
             response = await platform.safe_query(question)
-            
+
             if not response["success"]:
                 logger.warning(f"Platform {platform_name} failed for question: {question}")
                 return None
-            
+
             # Extract text response
             text_response = platform.extract_text_response(response["response"])
-            
+
             # Detect brand mentions
             brand_mentions = self.brand_detector.detect_brands(text_response, target_brands)
-            
+
             # Store response in database
             from app.models.response import Response
             db_response = Response(
@@ -839,27 +839,27 @@ class AuditProcessor:
                 response_metadata=response["response"],
                 created_at=datetime.utcnow()
             )
-            
+
             self.db.add(db_response)
             self.db.commit()
-            
+
             return {
                 "question": question,
                 "platform": platform_name,
                 "brand_mentions": brand_mentions,
                 "success": True
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing question '{question}' on {platform_name}: {str(e)}")
             return None
 
 class AuditScheduler:
     """Handles scheduled audit execution"""
-    
+
     def __init__(self):
         self.running_audits = set()
-    
+
     async def schedule_audit(self, audit_config_id: uuid.UUID, frequency: str):
         """Schedule recurring audits"""
         # This would integrate with Celery for production scheduling
@@ -894,7 +894,7 @@ class ReportGenerator:
             textColor=colors.HexColor('#2C3E50'),
             alignment=1  # Center
         )
-        
+
         self.heading_style = ParagraphStyle(
             'CustomHeading',
             parent=self.styles['Heading2'],
@@ -903,76 +903,76 @@ class ReportGenerator:
             spaceAfter=12,
             textColor=colors.HexColor('#34495E')
         )
-    
+
     def generate_audit_report(self, audit_run_id: uuid.UUID, db_session) -> str:
         """Generate comprehensive audit report"""
-        
+
         # Load audit data
         audit_data = self._load_audit_data(audit_run_id, db_session)
-        
+
         # Create PDF
         filename = f"AEO_Audit_Report_{audit_run_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
         filepath = f"reports/{filename}"
-        
+
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         story = []
-        
+
         # Title Page
         story.extend(self._create_title_page(audit_data))
         story.append(PageBreak())
-        
+
         # Executive Summary
         story.extend(self._create_executive_summary(audit_data))
         story.append(PageBreak())
-        
+
         # Competitive Analysis
         story.extend(self._create_competitive_analysis(audit_data))
         story.append(PageBreak())
-        
+
         # Platform Performance
         story.extend(self._create_platform_analysis(audit_data))
         story.append(PageBreak())
-        
+
         # Content Gap Analysis
         story.extend(self._create_content_gaps(audit_data))
         story.append(PageBreak())
-        
+
         # Recommendations
         story.extend(self._create_recommendations(audit_data))
-        
+
         # Build PDF
         doc.build(story)
-        
+
         return filepath
-    
+
     def _load_audit_data(self, audit_run_id: uuid.UUID, db_session) -> Dict[str, Any]:
         """Load and process audit data for reporting"""
-        
+
         from app.models.audit import AuditRun
         from app.models.response import Response
-        
+
         audit_run = db_session.query(AuditRun).filter(
             AuditRun.id == audit_run_id
         ).first()
-        
+
         responses = db_session.query(Response).filter(
             Response.audit_run_id == audit_run_id
         ).all()
-        
+
         # Process data for analysis
         client_name = audit_run.audit_config.client.name
         competitors = audit_run.audit_config.client.competitors
         all_brands = [client_name] + competitors
-        
+
         # Calculate metrics
         platform_stats = {}
         brand_performance = {}
         question_analysis = {}
-        
+
         for response in responses:
             platform = response.platform
             question_category = response.question_category
-            
+
             # Platform statistics
             if platform not in platform_stats:
                 platform_stats[platform] = {
@@ -980,15 +980,15 @@ class ReportGenerator:
                     "brand_mentions": {brand: 0 for brand in all_brands},
                     "avg_sentiment": {brand: [] for brand in all_brands}
                 }
-            
+
             platform_stats[platform]["total_questions"] += 1
-            
+
             # Brand performance analysis
             for brand, mention_data in response.brand_mentions.items():
                 if brand in all_brands:
                     platform_stats[platform]["brand_mentions"][brand] += mention_data["mentions"]
                     platform_stats[platform]["avg_sentiment"][brand].append(mention_data["sentiment_score"])
-                    
+
                     # Overall brand performance
                     if brand not in brand_performance:
                         brand_performance[brand] = {
@@ -997,21 +997,21 @@ class ReportGenerator:
                             "sentiment_scores": [],
                             "question_categories": {}
                         }
-                    
+
                     brand_performance[brand]["total_mentions"] += mention_data["mentions"]
                     brand_performance[brand]["platforms"].add(platform)
                     brand_performance[brand]["sentiment_scores"].append(mention_data["sentiment_score"])
-                    
+
                     if question_category not in brand_performance[brand]["question_categories"]:
                         brand_performance[brand]["question_categories"][question_category] = 0
                     brand_performance[brand]["question_categories"][question_category] += mention_data["mentions"]
-        
+
         # Calculate averages
         for platform in platform_stats:
             for brand in platform_stats[platform]["avg_sentiment"]:
                 scores = platform_stats[platform]["avg_sentiment"][brand]
                 platform_stats[platform]["avg_sentiment"][brand] = sum(scores) / len(scores) if scores else 0
-        
+
         return {
             "audit_run": audit_run,
             "client_name": client_name,
@@ -1024,16 +1024,16 @@ class ReportGenerator:
                 "end": audit_run.completed_at
             }
         }
-    
+
     def _create_title_page(self, data: Dict[str, Any]) -> List[Any]:
         """Create report title page"""
         story = []
-        
+
         # Title
         title = f"AEO Competitive Intelligence Report<br/>{data['client_name']}"
         story.append(Paragraph(title, self.title_style))
         story.append(Spacer(1, 0.5*inch))
-        
+
         # Report metadata
         metadata = [
             ["Report Date:", data['date_range']['end'].strftime('%B %d, %Y')],
@@ -1042,7 +1042,7 @@ class ReportGenerator:
             ["Platforms Monitored:", ", ".join(data['platform_stats'].keys())],
             ["Competitors Analyzed:", ", ".join(data['competitors'])]
         ]
-        
+
         table = Table(metadata, colWidths=[2*inch, 3*inch])
         table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -1050,26 +1050,26 @@ class ReportGenerator:
             ('FONTSIZE', (0, 0), (-1, -1), 12),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
         ]))
-        
+
         story.append(table)
-        
+
         return story
-    
+
     def _create_executive_summary(self, data: Dict[str, Any]) -> List[Any]:
         """Create executive summary section"""
         story = []
-        
+
         story.append(Paragraph("Executive Summary", self.title_style))
-        
+
         # Calculate key metrics
         client_mentions = data['brand_performance'].get(data['client_name'], {}).get('total_mentions', 0)
         total_competitor_mentions = sum(
-            data['brand_performance'].get(comp, {}).get('total_mentions', 0) 
+            data['brand_performance'].get(comp, {}).get('total_mentions', 0)
             for comp in data['competitors']
         )
-        
+
         market_share = (client_mentions / (client_mentions + total_competitor_mentions) * 100) if (client_mentions + total_competitor_mentions) > 0 else 0
-        
+
         # Key findings
         findings = [
             f"<b>AI Visibility Market Share:</b> {data['client_name']} captures {market_share:.1f}% of brand mentions across AI platforms",
@@ -1077,38 +1077,38 @@ class ReportGenerator:
             f"<b>Platform Performance:</b> Strongest presence on {self._get_best_platform(data)} with {self._get_platform_mention_count(data)} mentions",
             f"<b>Competitive Position:</b> {self._get_competitive_ranking(data)} out of {len(data['competitors']) + 1} brands analyzed"
         ]
-        
+
         for finding in findings:
             story.append(Paragraph(finding, self.styles['Normal']))
             story.append(Spacer(1, 12))
-        
+
         return story
-    
+
     def _create_competitive_analysis(self, data: Dict[str, Any]) -> List[Any]:
         """Create competitive analysis section"""
         story = []
-        
+
         story.append(Paragraph("Competitive Analysis", self.title_style))
-        
+
         # Brand comparison table
         table_data = [["Brand", "Total Mentions", "Avg Sentiment", "Platform Coverage"]]
-        
+
         for brand in [data['client_name']] + data['competitors']:
             brand_data = data['brand_performance'].get(brand, {})
             mentions = brand_data.get('total_mentions', 0)
             sentiment_scores = brand_data.get('sentiment_scores', [])
             avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
             platform_count = len(brand_data.get('platforms', set()))
-            
+
             sentiment_label = "Positive" if avg_sentiment > 0.1 else "Negative" if avg_sentiment < -0.1 else "Neutral"
-            
+
             table_data.append([
                 brand,
                 str(mentions),
                 f"{sentiment_label} ({avg_sentiment:.2f})",
                 f"{platform_count} platforms"
             ])
-        
+
         table = Table(table_data, colWidths=[2*inch, 1*inch, 1.5*inch, 1.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -1120,34 +1120,34 @@ class ReportGenerator:
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        
+
         story.append(table)
         story.append(Spacer(1, 20))
-        
+
         # Competitive insights
         story.append(Paragraph("Key Competitive Insights:", self.heading_style))
-        
+
         insights = self._generate_competitive_insights(data)
         for insight in insights:
             story.append(Paragraph(f"• {insight}", self.styles['Normal']))
             story.append(Spacer(1, 6))
-        
+
         return story
-    
+
     def _create_platform_analysis(self, data: Dict[str, Any]) -> List[Any]:
         """Create platform-specific analysis"""
         story = []
-        
+
         story.append(Paragraph("Platform Performance Analysis", self.title_style))
-        
+
         for platform, stats in data['platform_stats'].items():
             story.append(Paragraph(f"{platform.title()} Analysis", self.heading_style))
-            
+
             # Platform summary
             client_mentions = stats['brand_mentions'].get(data['client_name'], 0)
             total_questions = stats['total_questions']
             mention_rate = (client_mentions / total_questions * 100) if total_questions > 0 else 0
-            
+
             summary = f"""
             <b>Platform Overview:</b><br/>
             • Total questions analyzed: {total_questions}<br/>
@@ -1155,92 +1155,92 @@ class ReportGenerator:
             • Mention rate: {mention_rate:.1f}%<br/>
             • Average sentiment: {stats['avg_sentiment'].get(data['client_name'], 0):.2f}
             """
-            
+
             story.append(Paragraph(summary, self.styles['Normal']))
             story.append(Spacer(1, 20))
-        
+
         return story
-    
+
     def _create_content_gaps(self, data: Dict[str, Any]) -> List[Any]:
         """Create content gap analysis"""
         story = []
-        
+
         story.append(Paragraph("Content Gap Analysis", self.title_style))
-        
+
         # Analyze where competitors appear but client doesn't
         gaps = self._identify_content_gaps(data)
-        
+
         story.append(Paragraph("Opportunity Areas:", self.heading_style))
-        
+
         for gap in gaps[:10]:  # Top 10 opportunities
             story.append(Paragraph(f"• {gap}", self.styles['Normal']))
             story.append(Spacer(1, 6))
-        
+
         return story
-    
+
     def _create_recommendations(self, data: Dict[str, Any]) -> List[Any]:
         """Create actionable recommendations"""
         story = []
-        
+
         story.append(Paragraph("Strategic Recommendations", self.title_style))
-        
+
         recommendations = self._generate_recommendations(data)
-        
+
         for i, rec in enumerate(recommendations, 1):
             story.append(Paragraph(f"{i}. <b>{rec['title']}</b>", self.heading_style))
             story.append(Paragraph(rec['description'], self.styles['Normal']))
             story.append(Paragraph(f"<b>Expected Impact:</b> {rec['impact']}", self.styles['Normal']))
             story.append(Spacer(1, 15))
-        
+
         return story
-    
+
     def _get_best_platform(self, data: Dict[str, Any]) -> str:
         """Identify platform with highest client mentions"""
         best_platform = ""
         max_mentions = 0
-        
+
         for platform, stats in data['platform_stats'].items():
             mentions = stats['brand_mentions'].get(data['client_name'], 0)
             if mentions > max_mentions:
                 max_mentions = mentions
                 best_platform = platform
-        
+
         return best_platform or "Unknown"
-    
+
     def _get_platform_mention_count(self, data: Dict[str, Any]) -> int:
         """Get mention count for best platform"""
         best_platform = self._get_best_platform(data)
         return data['platform_stats'].get(best_platform, {}).get('brand_mentions', {}).get(data['client_name'], 0)
-    
+
     def _get_competitive_ranking(self, data: Dict[str, Any]) -> int:
         """Get client's ranking among all brands"""
         brand_mentions = [
             (brand, data['brand_performance'].get(brand, {}).get('total_mentions', 0))
             for brand in [data['client_name']] + data['competitors']
         ]
-        
+
         ranked_brands = sorted(brand_mentions, key=lambda x: x[1], reverse=True)
-        
+
         for i, (brand, mentions) in enumerate(ranked_brands, 1):
             if brand == data['client_name']:
                 return i
-        
+
         return len(ranked_brands)
-    
+
     def _generate_competitive_insights(self, data: Dict[str, Any]) -> List[str]:
         """Generate competitive insights"""
         insights = []
-        
+
         # Market leader analysis
         brand_mentions = [
             (brand, data['brand_performance'].get(brand, {}).get('total_mentions', 0))
             for brand in [data['client_name']] + data['competitors']
         ]
-        
+
         leader = max(brand_mentions, key=lambda x: x[1])
         if leader[0] != data['client_name']:
             insights.append(f"{leader[0]} leads in AI visibility with {leader[1]} total mentions")
-        
+
         # Sentiment analysis
         client_sentiment = data['brand_performance'].get(data['client_name'], {}).get('sentiment_scores', [])
         if client_sentiment:
@@ -1249,13 +1249,13 @@ class ReportGenerator:
                 insights.append(f"{data['client_name']} maintains positive sentiment across AI platforms")
             elif avg_sentiment < -0.1:
                 insights.append(f"{data['client_name']} shows negative sentiment that needs attention")
-        
+
         return insights
-    
+
     def _identify_content_gaps(self, data: Dict[str, Any]) -> List[str]:
         """Identify content gap opportunities"""
         gaps = []
-        
+
         # This would analyze where competitors get mentioned but client doesn't
         # For now, return placeholder gaps
         gaps = [
@@ -1264,9 +1264,9 @@ class ReportGenerator:
             "Alternative-seeking questions miss client mentions",
             "Industry-specific use cases underrepresented"
         ]
-        
+
         return gaps
-    
+
     def _generate_recommendations(self, data: Dict[str, Any]) -> List[Dict[str, str]]:
         """Generate strategic recommendations"""
         recommendations = [
@@ -1286,7 +1286,7 @@ class ReportGenerator:
                 "impact": "Enhanced visibility on primary platform"
             }
         ]
-        
+
         return recommendations
 
 ## Phase 7: API & Frontend (Week 13-14)
@@ -1329,7 +1329,7 @@ async def create_audit_config(
     db: Session = Depends(get_db)
 ):
     """Create new audit configuration"""
-    
+
     audit_config = AuditConfig(
         id=uuid.uuid4(),
         client_id=config_data.client_id,
@@ -1338,11 +1338,11 @@ async def create_audit_config(
         platforms=config_data.platforms,
         frequency=config_data.frequency
     )
-    
+
     db.add(audit_config)
     db.commit()
     db.refresh(audit_config)
-    
+
     return audit_config
 
 @router.post("/configs/{config_id}/run")
@@ -1352,24 +1352,24 @@ async def trigger_audit_run(
     db: Session = Depends(get_db)
 ):
     """Trigger immediate audit run"""
-    
+
     config = db.query(AuditConfig).filter(AuditConfig.id == config_id).first()
     if not config:
         raise HTTPException(status_code=404, detail="Audit config not found")
-    
+
     # Queue audit task
     background_tasks.add_task(run_audit_task, str(config_id))
-    
+
     return {"message": "Audit queued for execution", "config_id": config_id}
 
 @router.get("/runs/{run_id}/status")
 async def get_audit_status(run_id: uuid.UUID, db: Session = Depends(get_db)):
     """Get audit run status"""
-    
+
     audit_run = db.query(AuditRun).filter(AuditRun.id == run_id).first()
     if not audit_run:
         raise HTTPException(status_code=404, detail="Audit run not found")
-    
+
     return {
         "id": audit_run.id,
         "status": audit_run.status,
@@ -1398,16 +1398,16 @@ celery_app = Celery(
 @celery_app.task(bind=True)
 def run_audit_task(self, audit_config_id: str):
     """Background task to run audit"""
-    
+
     db = SessionLocal()
-    
+
     try:
         # Initialize processor
         processor = AuditProcessor(db)
-        
+
         # Register platforms
         processor.register_platform("openai", OpenAIPlatform(
-            settings.OPENAI_API_KEY, 
+            settings.OPENAI_API_KEY,
             settings.RATE_LIMITS["openai"]
         ))
         processor.register_platform("anthropic", AnthropicPlatform(
@@ -1415,12 +1415,12 @@ def run_audit_task(self, audit_config_id: str):
             settings.RATE_LIMITS["anthropic"]
         ))
         # Register other platforms...
-        
+
         # Run audit
         audit_run_id = await processor.run_audit(uuid.UUID(audit_config_id))
-        
+
         return {"status": "completed", "audit_run_id": str(audit_run_id)}
-        
+
     except Exception as e:
         self.retry(countdown=60, max_retries=3)
         raise e
@@ -1430,17 +1430,17 @@ def run_audit_task(self, audit_config_id: str):
 @celery_app.task
 def generate_report_task(audit_run_id: str):
     """Background task to generate report"""
-    
+
     from app.services.report_generator import ReportGenerator
-    
+
     db = SessionLocal()
-    
+
     try:
-        generator = ReportGenerator() 
+        generator = ReportGenerator()
         report_path = generator.generate_audit_report(uuid.UUID(audit_run_id), db)
-        
+
         return {"status": "completed", "report_path": report_path}
-        
+
     except Exception as e:
         raise e
     finally:
@@ -1479,7 +1479,7 @@ version: '3.8'
 
 services:
   web:
-    build: 
+    build:
       context: ../
       dockerfile: docker/Dockerfile
     ports:
@@ -1543,7 +1543,7 @@ python -m spacy download en_core_web_sm
 2. Environment Configuration
 # Create .env file
 cat > .env << EOF
-DATABASE_URL=postgresql://postgres:password@localhost:5432/aeo_audit  
+DATABASE_URL=postgresql://postgres:password@localhost:5432/aeo_audit
 REDIS_URL=redis://localhost:6379
 OPENAI_API_KEY=your_openai_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
@@ -1582,9 +1582,9 @@ def test_brand_detection():
     detector = BrandDetector()
     text = "I recommend using Salesforce for CRM, it's better than HubSpot."
     brands = ["Salesforce", "HubSpot", "Pipedrive"]
-    
+
     results = detector.detect_brands(text, brands)
-    
+
     assert "Salesforce" in results
     assert "HubSpot" in results
     assert results["Salesforce"].mentions >= 1
@@ -1594,7 +1594,7 @@ def test_brand_detection():
 def test_brand_normalization():
     detector = BrandDetector()
     variations = detector.normalize_brand_name("Apple Inc")
-    
+
     assert "apple inc" in variations
     assert "apple" in variations
     assert "apple corp" in variations
@@ -1611,7 +1611,7 @@ def test_question_generation():
         industry="CRM",
         categories=[QuestionCategory.COMPARISON, QuestionCategory.RECOMMENDATION]
     )
-    
+
     assert len(questions) > 0
     assert any("CRM" in q["question"] for q in questions)
     assert any("TestCRM" in q["question"] for q in questions)
@@ -1623,7 +1623,7 @@ def test_question_prioritization():
         {"category": "comparison", "question": "What is the best CRM?", "type": "industry_general"},
         {"category": "pricing", "question": "How much does Salesforce cost?", "type": "competitor_specific"}
     ]
-    
+
     prioritized = engine.prioritize_questions(questions, max_questions=10)
     assert len(prioritized) <= 10
     assert all("priority_score" in q for q in prioritized)
@@ -1638,7 +1638,7 @@ from app.services.ai_platforms.base import BasePlatform
 class MockPlatform(BasePlatform):
     def __init__(self):
         super().__init__("mock_key", 100)
-    
+
     async def query(self, question: str, **kwargs):
         return {
             "choices": [{
@@ -1647,7 +1647,7 @@ class MockPlatform(BasePlatform):
                 }
             }]
         }
-    
+
     def extract_text_response(self, raw_response):
         return raw_response["choices"][0]["message"]["content"]
 
@@ -1655,11 +1655,11 @@ class MockPlatform(BasePlatform):
 async def test_full_audit_process():
     # Mock database session
     mock_db = Mock()
-    
+
     # Create processor with mock platform
     processor = AuditProcessor(mock_db)
     processor.register_platform("mock", MockPlatform())
-    
+
     # This would require more complex mocking for full integration test
     # Focus on testing individual components thoroughly
 4.3 Performance Tests
@@ -1671,15 +1671,15 @@ from app.services.brand_detector import BrandDetector
 
 def test_brand_detection_performance():
     detector = BrandDetector()
-    
+
     # Large text with multiple brands
     large_text = "Salesforce is better than HubSpot. " * 1000
     brands = ["Salesforce", "HubSpot", "Pipedrive", "Zoho", "Microsoft"]
-    
+
     start_time = time.time()
     results = detector.detect_brands(large_text, brands)
     end_time = time.time()
-    
+
     # Should process within reasonable time
     assert end_time - start_time < 5.0  # 5 seconds max
     assert len(results) > 0
@@ -1687,18 +1687,18 @@ def test_brand_detection_performance():
 @pytest.mark.asyncio
 async def test_rate_limiting():
     from app.services.ai_platforms.base import AIRateLimiter
-    
+
     limiter = AIRateLimiter(requests_per_minute=60)  # 1 per second
-    
+
     start_time = time.time()
-    
+
     # Make 3 requests quickly
     await limiter.acquire()
     await limiter.acquire()
     await limiter.acquire()
-    
+
     end_time = time.time()
-    
+
     # Should take at least 2 seconds (rate limited)
     assert end_time - start_time >= 2.0
 Production Deployment Checklist
@@ -1754,4 +1754,3 @@ Critical Lessons from First Build
 9.	Implement proper task queues - Sequential processing doesn't scale
 10.	Plan for API changes - AI platforms frequently update their APIs
 This build plan incorporates all the painful lessons learned from the first attempt and provides a production-ready architecture that can scale to hundreds of agencies while maintaining reliability and performance.
-

@@ -6,9 +6,17 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/aeo_audit
-      - REDIS_URL=redis://redis:6379
-      - DEBUG=True
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=aeo_audit
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OPENAI_API_KEY=dummy_key
+      - ANTHROPIC_API_KEY=dummy_key
     depends_on:
       - db
       - redis
@@ -17,10 +25,19 @@ services:
 
   worker:
     build: .
-    command: celery -A celery_worker worker --loglevel=info
+    command: celery -A celery_worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/aeo_audit
-      - REDIS_URL=redis://redis:6379
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=aeo_audit
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OPENAI_API_KEY=dummy_key
+      - ANTHROPIC_API_KEY=dummy_key
     depends_on:
       - db
       - redis
@@ -44,4 +61,4 @@ services:
       - "6379:6379"
 
 volumes:
-  postgres_data: 
+  postgres_data:

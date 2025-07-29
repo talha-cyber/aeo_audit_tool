@@ -1,0 +1,24 @@
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 88
+select = [
+    "F",  # Pyflakes
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "I",  # isort
+    "C90", # mccabe complexity
+    "N", # pep8-naming
+]
+ignore = [
+    "E501", # line too long, handled by black
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = true

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(
     title="AEO Competitive Intelligence Tool",
     description="Multi-platform AEO audit tool that simulates user questions across AI platforms",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Add CORS middleware
@@ -16,7 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict:
     """Health check endpoint"""
-    return {"status": "ok"} 
+    return {"status": "ok"}

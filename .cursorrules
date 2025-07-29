@@ -1,0 +1,54 @@
+# .cursorrules
+
+[project]
+name = "AEO Competitive Intelligence Tool"
+description = "An AI-driven auditing platform that simulates user queries across multiple LLMs (OpenAI, Anthropic, etc.) to analyze brand visibility, sentiment, and positioning. Targeted for SEO/AEO agencies as a white-label solution."
+
+[code]
+language = "Python"
+frameworks = ["FastAPI", "Celery", "React (optional frontend)"]
+architecture = "Service-oriented, async, modular"
+formatting = "black"
+linters = ["ruff", "mypy"]
+type_hints = true
+tests = "pytest with coverage > 85%"
+
+[output]
+style = "modular, well-documented, test-covered"
+requirements = [
+  "All code must include logging via structlog.",
+  "Async functions should be used where applicable.",
+  "Security: never expose API keys, use dotenv config.",
+  "Docker must run full stack: FastAPI, Redis, Postgres, Celery.",
+  "Use environment variables for all secrets and connections.",
+  "Reports generated in PDF format using ReportLab.",
+  "Use Redis-backed token buckets for platform rate-limiting."
+]
+
+[LLM]
+instructions = "Always reference `ARCHITECTURE.md` when implementing modules. Keep each module testable in isolation. Avoid monolith files."
+
+Priority 1: Build Plan & Architecture Reference
+
+Always consult both the build plan and architecture docs before taking action
+
+[build_plan_reference]
+match = run
+context_files = ["@build_plan_chrono.md", "@ARCHITECTURE.md"]
+action = preamble
+message = >-
+Cursor should always reference the latest AEO Audit Tool build plan
+(@build_plan_chrono.md) and the architecture specification (@ARCHITECTURE.md)
+with equal weight before executing any commands.
+
+Priority 2: Protect Core Infrastructure & Feature Modules
+
+Prevent accidental deletion or refactoring without explicit approval
+
+[protect_core_infra]
+match_command = delete|modify
+match_path = ^(core/|features/)
+action = prompt_user
+message = >-
+You are about to delete or modify established core infrastructure or feature modules.
+Please confirm you have explicit permission before proceeding.

@@ -107,4 +107,4 @@ This is the basic skeleton. To implement the full AEO audit functionality, refer
 - Brand detection engine
 - Question generation
 - Report generation
-- API endpoints 
+- API endpoints
