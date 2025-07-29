@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="AEO Competitive Intelligence Tool",
-    description="Multi-platform AEO audit tool that simulates user questions across AI platforms",
+    description=(
+        "Multi-platform AEO audit tool that simulates user questions "
+        "across AI platforms"
+    ),
     version="1.0.0",
 )
 

@@ -12,23 +12,23 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
 
     # Database settings
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    POSTGRES_SERVER: str
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "password"
+    POSTGRES_DB: str = "aeo_audit"
+    POSTGRES_SERVER: str = "db"
     POSTGRES_PORT: int = 5432
 
     # Redis settings
-    REDIS_HOST: str
+    REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
 
     # AI Platform API keys
-    OPENAI_API_KEY: str
-    ANTHROPIC_API_KEY: str
+    OPENAI_API_KEY: str = "dummy_key"
+    ANTHROPIC_API_KEY: str = "dummy_key"
 
     # Celery settings
-    CELERY_BROKER_URL: str
-    CELERY_RESULT_BACKEND: str
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
 
     @property
     def database_url(self) -> str:

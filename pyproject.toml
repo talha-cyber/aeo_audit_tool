@@ -12,9 +12,10 @@ select = [
     "C90", # mccabe complexity
     "N", # pep8-naming
 ]
-ignore = [
-    "E501", # line too long, handled by black
-]
+ignore = ["N805"]  # Allow first argument names other than 'self' for SQLAlchemy declarative methods
+
+[tool.ruff.per-file-ignores]
+"app/db/base_class.py" = ["N805"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -14,6 +14,9 @@ healthcheck:
 	@echo "\n3️⃣  Running Ruff (lint)..." && \
 	docker-compose exec web ruff check . || exit 1
 
+	@echo "\n4️⃣  Running MyPy (type checking)..." && \
+	docker-compose exec web mypy . || exit 1
+
 	@echo "\n5️⃣  Running Pytest with coverage..." && \
 	docker-compose exec web pytest --cov=app --cov-report=term-missing || exit 1
 
