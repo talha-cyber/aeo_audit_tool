@@ -1,8 +1,8 @@
 # API & Web Framework
-fastapi==0.104.1
-uvicorn==0.24.0
-starlette==0.27.0
-httpx<0.28.0  # Pin to avoid TestClient compatibility issues
+fastapi>=0.110.0
+uvicorn>=0.24.0
+starlette>=0.31.0
+httpx>=0.26.0
 
 # Database
 sqlalchemy==2.0.23

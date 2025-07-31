@@ -29,11 +29,11 @@ This document outlines a clear, step-by-step roadmap for building the AEO Audit 
 
 *Goal: Validate that all core components (API, Worker, DB, AI Client, Secrets) work together in a real, end-to-end flow.*
 
-- [ ] **API Endpoint:** Create a `POST /audit` endpoint in FastAPI that accepts basic audit parameters.
-- [ ] **Background Task:** The endpoint enqueues a Celery task to perform the audit.
-- [ ] **AI Integration:** The Celery task calls a minimal `OpenAIPlatform` client.
-- [ ] **Persistence:** The task persists the raw AI response into the `responses` table.
-- [ ] **Status Check:** Implement a `GET /audit/{run_id}/status` endpoint.
+- [x] **API Endpoint:** Create a `POST /audit` endpoint in FastAPI that accepts basic audit parameters.
+- [x] **Background Task:** The endpoint enqueues a Celery task to perform the audit.
+- [x] **AI Integration:** The Celery task calls a minimal `OpenAIPlatform` client.
+- [x] **Persistence:** The task persists the raw AI response into the `responses` table.
+- [x] **Status Check:** Implement a `GET /audit/{run_id}/status` endpoint.
 - [ ] **Secrets Management:** Integrate Doppler, Vault, or GitHub OIDC with AWS Secrets Manager.
 - [ ] **API Documentation:** Publish the auto-generated `/openapi.json` to a documentation platform (e.g., Stoplight, SwaggerHub).
 

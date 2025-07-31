@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # AI Platform API keys
     OPENAI_API_KEY: str = "dummy_key"
     ANTHROPIC_API_KEY: str = "dummy_key"
+    PERPLEXITY_API_KEY: str = "dummy_key"
+    GOOGLE_AI_API_KEY: str = "dummy_key"
 
     # Celery settings
     CELERY_BROKER_URL: str = "redis://redis:6379/0"

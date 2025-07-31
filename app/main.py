@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1 import audits
+
 app = FastAPI(
     title="AEO Competitive Intelligence Tool",
     description=(
@@ -18,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(audits.router, prefix="/api/v1")
 
 
 @app.get("/health")

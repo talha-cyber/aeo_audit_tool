@@ -19,14 +19,5 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task
-def test_task(message: str = "Hello from Celery!") -> dict:
-    """
-    No-op test task to verify Celery is working
-    """
-    print(f"Test task executed: {message}")
-    return {"status": "completed", "message": message}
-
-
 if __name__ == "__main__":
-    celery_app.start()
+    celery_app.worker_main(argv=["worker", "--loglevel=info", "--pool=gevent"])

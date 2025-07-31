@@ -2,6 +2,7 @@
 # imported by Alembic
 from app.db.base_class import Base
 from app.models.audit import AuditRun, Client
-from app.models.report import Question, Report, Response
+from app.models.report import Report
+from app.models.response import Response
 
-__all__ = ["Base", "Client", "AuditRun", "Question", "Response", "Report"]  # noqa: F401
+__all__ = ["Base", "Client", "AuditRun", "Response", "Report"]  # noqa: F401

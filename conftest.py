@@ -8,9 +8,14 @@ import sys
 from typing import Generator
 
 import pytest
+from celery import Celery
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -18,11 +23,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # Fixture for the Celery app for testing
 @pytest.fixture(scope="module")
-def celery_app_fixture() -> tuple:
-    from celery_worker import celery_app, test_task
+def celery_app_fixture() -> Celery:
+    from celery_worker import celery_app
 
     celery_app.conf.update(task_always_eager=True)
-    return celery_app, test_task
+    return celery_app
 
 
 # Fixture for an in-memory SQLite database for testing
