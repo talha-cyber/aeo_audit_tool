@@ -1,305 +1,164 @@
 """
 Question Engine Module for AEO Competitive Intelligence Tool
 
-Generates and prioritizes questions for AI platform audits based on client brand,
-competitors, and industry context.
+Orchestrates multiple question providers to generate a comprehensive and
+prioritized list of questions for AI platform audits.
 """
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Dict, List, Optional
+import asyncio
+import uuid
+from typing import List, Optional
 
-try:
-    import structlog
+import structlog
 
-    logger = structlog.get_logger(__name__)
-except ImportError:
-    # Fallback logger for testing without structlog
-    import logging
+from app.services import metrics
+from app.services.providers import (
+    ProviderResult,
+    Question,
+    QuestionContext,
+    QuestionProvider,
+)
+from app.services.providers.dynamic_provider import DynamicProvider
+from app.services.providers.template_provider import TemplateProvider
 
-    logger = logging.getLogger(__name__)
-
-
-class QuestionCategory(Enum):
-    """Categories for audit questions."""
-
-    COMPARISON = "comparison"
-    RECOMMENDATION = "recommendation"
-    FEATURES = "features"
-    PRICING = "pricing"
-    REVIEWS = "reviews"
-    ALTERNATIVES = "alternatives"
-
-
-@dataclass
-class QuestionTemplate:
-    """Template for generating audit questions."""
-
-    category: QuestionCategory
-    template: str
-    variations: List[str]
-    industry_specific: bool = False
+logger = structlog.get_logger(__name__)
 
 
 class QuestionEngine:
     """
-    Engine for generating and prioritizing audit questions.
+    Orchestrates question generation from multiple providers.
 
-    Generates questions by expanding templates with client brand, competitors,
-    and industry context. Prioritizes questions based on strategic value.
+    This engine discovers and runs all registered question providers that can
+    handle a given context. It uses asyncio.gather to run providers
+    concurrently, merges their results, and then prioritizes the final list
+    of questions.
     """
 
-    def __init__(self) -> None:
-        """Initialize question engine with base templates and industry patterns."""
-        logger.info("Initializing QuestionEngine")
+    def __init__(self, providers: Optional[List[QuestionProvider]] = None) -> None:
+        """
+        Initializes the QuestionEngine with a list of providers.
 
-        self.base_templates = [
-            QuestionTemplate(
-                category=QuestionCategory.COMPARISON,
-                template="What is the best {industry} software?",
-                variations=[
-                    "Which {industry} software is the best?",
-                    "What's the top {industry} tool?",
-                    "Best {industry} software in 2024?",
-                    "Leading {industry} solutions?",
-                    "Top-rated {industry} platforms?",
-                ],
-            ),
-            QuestionTemplate(
-                category=QuestionCategory.RECOMMENDATION,
-                template="What {industry} software do you recommend?",
-                variations=[
-                    "Can you recommend a good {industry} tool?",
-                    "What {industry} software should I use?",
-                    "Which {industry} platform do you suggest?",
-                    "Recommend {industry} software for small business?",
-                ],
-            ),
-            QuestionTemplate(
-                category=QuestionCategory.ALTERNATIVES,
-                template="What are alternatives to {competitor}?",
-                variations=[
-                    "What are {competitor} competitors?",
-                    "Software similar to {competitor}?",
-                    "{competitor} alternatives?",
-                    "Competitors of {competitor}?",
-                    "Software like {competitor}?",
-                ],
-            ),
-            QuestionTemplate(
-                category=QuestionCategory.FEATURES,
-                template="What features does {brand} have?",
-                variations=[
-                    "What can {brand} do?",
-                    "{brand} capabilities?",
-                    "Features of {brand}?",
-                    "What does {brand} offer?",
-                    "{brand} functionality?",
-                ],
-            ),
-            QuestionTemplate(
-                category=QuestionCategory.PRICING,
-                template="How much does {brand} cost?",
-                variations=[
-                    "What is {brand} pricing?",
-                    "{brand} price?",
-                    "Cost of {brand}?",
-                    "{brand} subscription cost?",
-                    "How expensive is {brand}?",
-                ],
-            ),
-            QuestionTemplate(
-                category=QuestionCategory.REVIEWS,
-                template="What are reviews of {brand}?",
-                variations=[
-                    "Is {brand} good?",
-                    "{brand} reviews and ratings?",
-                    "What do users think of {brand}?",
-                    "Pros and cons of {brand}?",
-                    "{brand} user experience?",
-                ],
-            ),
-        ]
+        If no providers are supplied, it defaults to loading the TemplateProvider
+        and DynamicProvider.
 
-        # Industry-specific question patterns
-        self.industry_patterns = {
-            "CRM": [
-                "What CRM integrates with Salesforce?",
-                "Best CRM for lead management?",
-                "Which CRM has the best mobile app?",
-                "What CRM works best for small teams?",
-                "Best CRM for email marketing integration?",
-            ],
-            "Marketing Automation": [
-                "What marketing automation tool has the best email features?",
-                "Which platform is best for drip campaigns?",
-                "Best marketing automation for ecommerce?",
-                "What marketing tool integrates with CRM?",
-                "Best platform for lead nurturing?",
-            ],
-            "Project Management": [
-                "What project management tool is best for teams?",
-                "Which PM software has Gantt charts?",
-                "Best project management for remote teams?",
-                "What PM tool integrates with Slack?",
-                "Best project tracking software?",
-            ],
-            "Analytics": [
-                "Best analytics platform for startups?",
-                "What analytics tool tracks user behavior?",
-                "Which platform has the best dashboards?",
-                "Best analytics for ecommerce tracking?",
-                "What tool provides real-time analytics?",
-            ],
-        }
+        Args:
+            providers: A list of question provider instances.
+        """
+        if providers is None:
+            self.providers = [TemplateProvider(), DynamicProvider()]
+        else:
+            self.providers = providers
 
         logger.info(
             "QuestionEngine initialized",
-            template_count=len(self.base_templates),
-            industry_pattern_count=len(self.industry_patterns),
+            provider_count=len(self.providers),
+            provider_names=[p.name for p in self.providers],
         )
 
-    def _generate_from_template(
-        self,
-        template: QuestionTemplate,
-        variation: str,
-        client_brand: str,
-        competitors: List[str],
-        industry: str,
-    ) -> List[Dict[str, Any]]:
-        """Generates questions from a single template variation."""
-        questions = []
-        question_data = {
-            "category": template.category.value,
-            "template": template.template,
-            "variation": variation,
-            "industry": industry,
-            "client_brand": client_brand,
-            "competitors": competitors,
-        }
-
-        if "{industry}" in variation:
-            questions.append(
-                {
-                    **question_data,
-                    "question": variation.format(industry=industry),
-                    "type": "industry_general",
-                }
-            )
-
-        if "{brand}" in variation:
-            questions.append(
-                {
-                    **question_data,
-                    "question": variation.format(brand=client_brand),
-                    "type": "brand_specific",
-                    "target_brand": client_brand,
-                }
-            )
-            for competitor in competitors:
-                questions.append(
-                    {
-                        **question_data,
-                        "question": variation.format(brand=competitor),
-                        "type": "competitor_specific",
-                        "target_brand": competitor,
-                    }
-                )
-
-        if "{competitor}" in variation:
-            for competitor in competitors:
-                questions.append(
-                    {
-                        **question_data,
-                        "question": variation.format(competitor=competitor),
-                        "type": "alternative_seeking",
-                        "target_brand": competitor,
-                    }
-                )
-        return questions
-
-    def generate_questions(
-        self,
-        client_brand: str,
-        competitors: List[str],
-        industry: str,
-        categories: Optional[List[QuestionCategory]] = None,
-    ) -> List[Dict[str, Any]]:
+    async def _safe_generate(
+        self, provider: QuestionProvider, ctx: QuestionContext
+    ) -> ProviderResult:
         """
-        Generate comprehensive question set for audit.
+        Safely executes a provider's generate method, handling exceptions.
+
+        This wrapper ensures that an error in one provider does not disrupt the
+        entire question generation process. Failed providers will return an
+        empty result.
 
         Args:
-            client_brand: Name of the client's brand
-            competitors: List of competitor brand names
-            industry: Industry category (e.g., "CRM", "Marketing Automation")
-            categories: Optional list of question categories to include
+            provider: The question provider to execute.
+            ctx: The context for the question generation request.
 
         Returns:
-            List of question dictionaries with metadata
+            The result from the provider, or an empty ProviderResult on failure.
         """
-        if categories is None:
-            categories = list(QuestionCategory)
+        try:
+            with metrics.PROVIDER_LATENCY_SECONDS.labels(provider.name).time():
+                result = await provider.generate(ctx)
+            metrics.PROVIDER_CALLS_TOTAL.labels(provider.name).inc()
+            return result
+        except Exception as e:
+            logger.error(
+                "Question provider failed during generation",
+                provider_name=provider.name,
+                error=str(e),
+                exc_info=True,
+            )
+            metrics.PROVIDER_FAILURES_TOTAL.labels(provider.name).inc()
+            return ProviderResult(questions=[], metadata={"error": str(e)})
 
-        logger.info(
-            "Generating questions",
+    async def generate_questions(
+        self,
+        client_brand: str,
+        competitors: List[str],
+        industry: str,
+        product_type: str,
+        audit_run_id: uuid.UUID,
+        max_questions: int = 100,
+    ) -> List[Question]:
+        """
+        Generates and prioritizes a comprehensive question set from all providers.
+
+        Args:
+            client_brand: Name of the client's brand.
+            competitors: List of competitor brand names.
+            industry: Industry category for the audit.
+            product_type: The type of product being audited.
+            audit_run_id: The unique ID for the audit run.
+            max_questions: The maximum number of questions to return after
+                prioritization.
+
+        Returns:
+            A list of prioritized Question objects.
+        """
+        ctx = QuestionContext(
             client_brand=client_brand,
-            competitor_count=len(competitors),
+            competitors=competitors,
             industry=industry,
-            category_count=len(categories),
+            product_type=product_type,
+            audit_run_id=audit_run_id,
         )
 
-        questions = []
+        enabled_providers = [p for p in self.providers if p.can_handle(ctx)]
+        logger.info(
+            "Generating questions with enabled providers",
+            enabled_providers=[p.name for p in enabled_providers],
+            audit_run_id=audit_run_id,
+        )
 
-        # Generate from base templates
-        for template in self.base_templates:
-            if template.category not in categories:
-                continue
+        # Concurrently run all enabled providers
+        provider_results = await asyncio.gather(
+            *[self._safe_generate(p, ctx) for p in enabled_providers],
+        )
 
-            for variation in template.variations:
-                questions.extend(
-                    self._generate_from_template(
-                        template,
-                        variation,
-                        client_brand,
-                        competitors,
-                        industry,
-                    )
-                )
-
-        # Add industry-specific questions
-        if industry in self.industry_patterns:
-            for question in self.industry_patterns[industry]:
-                questions.append(
-                    {
-                        "category": "industry_specific",
-                        "question": question,
-                        "type": "industry_specific",
-                        "industry": industry,
-                        "client_brand": client_brand,
-                        "competitors": competitors,
-                    }
-                )
+        # Merge questions from all successful provider results
+        all_questions = [
+            q
+            for result in provider_results
+            if isinstance(result, ProviderResult) and result.questions
+            for q in result.questions
+        ]
 
         logger.info(
-            "Questions generated",
-            total_questions=len(questions),
-            client_brand=client_brand,
+            "Total questions generated before prioritization",
+            count=len(all_questions),
+            audit_run_id=audit_run_id,
         )
 
-        return questions
+        return self.prioritize_questions(all_questions, max_questions)
 
     def prioritize_questions(
-        self, questions: List[Dict[str, Any]], max_questions: int = 100
-    ) -> List[Dict[str, Any]]:
+        self, questions: List[Question], max_questions: int
+    ) -> List[Question]:
         """
-        Prioritize questions based on strategic value.
+        Prioritizes questions based on strategic value.
 
         Args:
-            questions: List of question dictionaries
-            max_questions: Maximum number of questions to return
+            questions: List of Question objects from all providers.
+            max_questions: Maximum number of questions to return.
 
         Returns:
-            List of top-priority questions sorted by score
+            A sorted and truncated list of top-priority questions.
         """
         logger.info(
             "Prioritizing questions",
@@ -307,41 +166,42 @@ class QuestionEngine:
             max_questions=max_questions,
         )
 
-        # Priority scoring weights
         priority_weights = {
-            "comparison": 10,  # High value - direct competitive intelligence
-            "recommendation": 9,  # High value - recommendation scenarios
-            "alternatives": 8,  # High value - competitor displacement
-            "features": 6,  # Medium value - feature positioning
-            "pricing": 5,  # Medium value - pricing intelligence
-            "reviews": 7,  # Medium-high value - sentiment analysis
-            "industry_specific": 7,  # Medium-high value - targeted insights
+            "comparison": 10,
+            "recommendation": 9,
+            "alternatives": 8,
+            "reviews": 7,
+            "industry_specific": 7,
+            "features": 6,
+            "pricing": 5,
+            "dynamic": 8,  # Give dynamic questions a high priority
+            "template": 5,  # Lower priority for generic templates
         }
 
-        # Score each question
         for question in questions:
-            base_score = priority_weights.get(question["category"], 5)
+            if question.priority_score == 0.0:
+                category = question.category
 
-            # Boost score for certain question types
-            if question["type"] == "industry_general":
-                question["priority_score"] = base_score + 2
-            elif question["type"] == "alternative_seeking":
-                question["priority_score"] = base_score + 1
-            else:
-                question["priority_score"] = base_score
+                base_score = priority_weights.get(category, 5)
 
-        # Sort by priority and return top questions
+                question.priority_score = base_score
+
         sorted_questions = sorted(
-            questions, key=lambda x: x["priority_score"], reverse=True
+            questions, key=lambda x: x.priority_score, reverse=True
         )
-        prioritized = sorted_questions[:max_questions]
 
-        logger.info(
-            "Questions prioritized",
-            output_count=len(prioritized),
-            avg_score=sum(q["priority_score"] for q in prioritized) / len(prioritized)
-            if prioritized
-            else 0,
-        )
+        # Deduplicate questions based on the question text, keeping the one
+        # with the highest score
+        unique_questions = {}
+        for q in sorted_questions:
+            question_text = q.question_text.lower().strip()
+            if question_text not in unique_questions:
+                unique_questions[question_text] = q
+
+        final_questions = list(unique_questions.values())
+
+        prioritized = final_questions[:max_questions]
+
+        logger.info("Questions prioritized", output_count=len(prioritized))
 
         return prioritized

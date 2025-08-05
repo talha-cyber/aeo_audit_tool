@@ -1,0 +1,48 @@
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    # Group dependencies by type
+    groups:
+      security-updates:
+        patterns:
+          - "bandit"
+          - "sentry-sdk*"
+      ai-platforms:
+        patterns:
+          - "openai"
+          - "anthropic"
+      data-processing:
+        patterns:
+          - "pandas"
+          - "numpy"
+          - "matplotlib"
+      testing:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "mypy"
+    # Auto-merge minor and patch updates for non-critical dependencies
+    open-pull-requests-limit: 10
+    reviewers:
+      - "team-leads"  # Adjust to your actual team
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

@@ -23,3 +23,14 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 disallow_untyped_defs = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+# Skip some tests that are commonly noisy in our context
+skips = [
+    "B101",  # assert_used - we use asserts in tests
+    "B601",  # paramiko_calls - may be triggered by some libraries
+]
+# Focus on high and medium severity issues
+confidence = "medium"
+severity = "medium"

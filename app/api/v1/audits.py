@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models.audit import AuditRun
+from app.models.audit import AuditRun, Client
 from app.tasks.audit_tasks import run_audit_task
 
 router = APIRouter(prefix="/audits", tags=["audits"])
@@ -26,17 +26,20 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-@router.post("/configs/{config_id}/run", response_model=AuditRunResponse)
+@router.post("/configs/{client_id}/run", response_model=AuditRunResponse)
 async def trigger_audit_run(
-    config_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+    client_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
 ) -> AuditRun:
     """Trigger immediate audit run"""
 
-    # For now, we'll create a dummy AuditRun, since we don't have AuditConfig yet
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
     audit_run = AuditRun(
         id=uuid.uuid4().hex,
-        client_id=1,  # Dummy client_id
-        config={},
+        client_id=client.id,
+        config={"platforms": ["openai"]},
         status="pending",
     )
     db.add(audit_run)

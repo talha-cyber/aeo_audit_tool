@@ -26,10 +26,10 @@ jobs:
         pip install -r requirements.txt
         pip install pytest-cov
 
-    - name: Run tests with coverage
+    - name: Run tests with coverage enforcement
       run: |
         source venv/bin/activate
-        pytest --cov=app --cov-report=xml
+        pytest --cov=app --cov-report=xml --cov-fail-under=80
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -44,6 +44,50 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install bandit
+
+      - name: Run Bandit SAST scan
+        run: |
+          source venv/bin/activate
+          # Use --exit-zero-on-warn initially to avoid breaking builds while triaging
+          bandit -r app -c pyproject.toml --exit-zero-on-warn --format json --output bandit-report.json
+          # Also create human-readable output for CI logs
+          bandit -r app -c pyproject.toml --exit-zero-on-warn
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+      - name: Build Docker image for vulnerability scanning
+        run: |
+          docker build -t aeo-audit-tool:${{ github.sha }} .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'aeo-audit-tool:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'  # Fail build on HIGH/CRITICAL vulnerabilities
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
 
       - name: Trufflehog Scan
         uses: trufflesecurity/trufflehog@main
