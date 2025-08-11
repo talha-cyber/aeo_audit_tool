@@ -1,0 +1,1 @@
+"""Brand detection data models"""

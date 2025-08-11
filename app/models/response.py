@@ -14,3 +14,4 @@ class Response(Base):
     response = Column(Text)
     raw_response = Column(JSON)
     platform = Column(String)
+    brand_mentions = Column(JSON)

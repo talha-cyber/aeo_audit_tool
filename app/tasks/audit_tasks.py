@@ -8,6 +8,10 @@ from app.models.audit import AuditRun
 from app.models.question import Question
 from app.models.response import Response
 from app.services.ai_platforms.openai_client import OpenAIPlatform
+from app.services.brand_detection import (
+    BrandDetectionOrchestrator,
+    initialize_brand_detection,
+)
 from app.services.question_engine import QuestionEngine
 from app.utils.logger import add_audit_context, add_platform_context, get_logger
 
@@ -37,6 +41,14 @@ async def run_audit_async(self, audit_run_id: str) -> None:
         audit_run.status = "running"
         db.commit()
 
+        # Initialize Brand Detection Service
+        initialize_brand_detection()
+        from app.core.config import settings
+
+        orchestrator = BrandDetectionOrchestrator(
+            openai_api_key=settings.OPENAI_API_KEY
+        )
+
         # Initialize Question Engine
         question_engine = QuestionEngine()
 
@@ -65,7 +77,6 @@ async def run_audit_async(self, audit_run_id: str) -> None:
             )
 
             # For testing, use a mock response when API key is dummy
-            from app.core.config import settings
 
             if settings.OPENAI_API_KEY == "dummy_key":
                 platform_logger.info("Using mock response (dummy API key)")
@@ -91,6 +102,13 @@ async def run_audit_async(self, audit_run_id: str) -> None:
                 "AI platform response received", response_length=len(text_response)
             )
 
+            # Detect brand mentions
+            brand_mentions = await orchestrator.detect_with_profile(
+                text=text_response,
+                target_brands=[audit_run.client.name] + audit_run.client.competitors,
+                market_code="DE",  # Or get from client settings
+            )
+
             response = Response(
                 id=uuid.uuid4().hex,
                 audit_run_id=audit_run.id,
@@ -98,6 +116,7 @@ async def run_audit_async(self, audit_run_id: str) -> None:
                 response=text_response,
                 raw_response=raw_response,
                 platform="openai",
+                brand_mentions=brand_mentions.to_summary_dict(),
             )
             db.add(response)
 

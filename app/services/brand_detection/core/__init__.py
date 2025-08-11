@@ -1,0 +1,1 @@
+"""Core brand detection components"""
