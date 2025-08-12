@@ -6,7 +6,7 @@ httpx>=0.26.0
 tenacity>=8.2.3
 
 # Database
-sqlalchemy==2.0.23
+sqlalchemy==2.0.43
 psycopg2-binary==2.9.9
 alembic==1.12.1
 
