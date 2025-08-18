@@ -418,9 +418,7 @@ def _calculate_average_questions(audits: List[AuditRun]) -> float:
     if not audits:
         return 0.0
 
-    valid_counts = [
-        audit.total_questions for audit in audits if audit.total_questions
-    ]
+    valid_counts = [audit.total_questions for audit in audits if audit.total_questions]
     return sum(valid_counts) / len(valid_counts) if valid_counts else 0.0
 
 
