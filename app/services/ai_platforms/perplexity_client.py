@@ -1,7 +1,7 @@
 """
-OpenAI platform client implementation.
+Perplexity platform client implementation.
 
-Provides integration with OpenAI's chat completion API using the standardized
+Provides integration with Perplexity's chat completion API using the standardized
 BasePlatform interface with proper error handling and response parsing.
 """
 
@@ -10,35 +10,38 @@ from typing import Any, Dict
 from .base import BasePlatform
 
 
-class OpenAIPlatform(BasePlatform):
+class PerplexityPlatform(BasePlatform):
     """
-    OpenAI platform implementation.
+    Perplexity platform implementation.
 
-    Supports OpenAI's chat completion API with configurable models,
+    Supports Perplexity's chat completion API with configurable models,
     parameters, and proper response text extraction.
     """
 
-    def __init__(self, api_key: str, rate_limit: int = 50, **config):
+    def __init__(self, api_key: str, rate_limit: int = 20, **config):
         """
-        Initialize OpenAI platform client.
+        Initialize Perplexity platform client.
 
         Args:
-            api_key: OpenAI API key
-            rate_limit: Requests per minute limit (default: 50)
+            api_key: Perplexity API key
+            rate_limit: Requests per minute limit (default: 20)
             **config: Additional configuration options:
-                - base_url: API base URL (default: https://api.openai.com/v1)
-                - default_model: Default model to use (default: gpt-4)
+                - base_url: API base URL (default: https://api.perplexity.ai)
+                - default_model: Default model to use
+                  (default: llama-3.1-sonar-small-128k-online)
                 - max_tokens: Default max tokens (default: 500)
                 - temperature: Default temperature (default: 0.1)
         """
         super().__init__(api_key, rate_limit, **config)
-        self.base_url = config.get("base_url", "https://api.openai.com/v1")
-        self.default_model = config.get("default_model", "gpt-4")
+        self.base_url = config.get("base_url", "https://api.perplexity.ai")
+        self.default_model = config.get(
+            "default_model", "llama-3.1-sonar-small-128k-online"
+        )
         self.max_tokens = config.get("max_tokens", 500)
         self.temperature = config.get("temperature", 0.1)
 
     def _get_default_headers(self) -> Dict[str, str]:
-        """Get default headers for OpenAI requests."""
+        """Get default headers for Perplexity requests."""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -46,12 +49,12 @@ class OpenAIPlatform(BasePlatform):
         }
 
     def _get_endpoint_url(self) -> str:
-        """Get OpenAI chat completions endpoint URL."""
+        """Get Perplexity chat completions endpoint URL."""
         return f"{self.base_url}/chat/completions"
 
     def _prepare_request_payload(self, question: str, **kwargs) -> Dict[str, Any]:
         """
-        Prepare OpenAI API request payload.
+        Prepare Perplexity API request payload.
 
         Args:
             question: The question/prompt to send
@@ -70,7 +73,7 @@ class OpenAIPlatform(BasePlatform):
 
     async def query(self, question: str, **kwargs) -> Dict[str, Any]:
         """
-        OpenAI-specific query implementation.
+        Perplexity-specific query implementation.
 
         Note: This method should not be called directly.
         Use safe_query() instead which provides error handling and rate limiting.
@@ -79,10 +82,10 @@ class OpenAIPlatform(BasePlatform):
 
     def extract_text_response(self, raw_response: Dict[str, Any]) -> str:
         """
-        Extract text from OpenAI response format.
+        Extract text from Perplexity response format.
 
         Args:
-            raw_response: Raw response from OpenAI API
+            raw_response: Raw response from Perplexity API
 
         Returns:
             Clean text content from the response
@@ -93,4 +96,4 @@ class OpenAIPlatform(BasePlatform):
         try:
             return raw_response["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError, AttributeError) as e:
-            raise ValueError(f"Invalid OpenAI response format: {e}")
+            raise ValueError(f"Invalid Perplexity response format: {e}")

@@ -1,7 +1,7 @@
 """
-OpenAI platform client implementation.
+Anthropic platform client implementation.
 
-Provides integration with OpenAI's chat completion API using the standardized
+Provides integration with Anthropic's Claude API using the standardized
 BasePlatform interface with proper error handling and response parsing.
 """
 
@@ -10,48 +10,50 @@ from typing import Any, Dict
 from .base import BasePlatform
 
 
-class OpenAIPlatform(BasePlatform):
+class AnthropicPlatform(BasePlatform):
     """
-    OpenAI platform implementation.
+    Anthropic platform implementation.
 
-    Supports OpenAI's chat completion API with configurable models,
+    Supports Anthropic's Claude messaging API with configurable models,
     parameters, and proper response text extraction.
     """
 
-    def __init__(self, api_key: str, rate_limit: int = 50, **config):
+    def __init__(self, api_key: str, rate_limit: int = 100, **config):
         """
-        Initialize OpenAI platform client.
+        Initialize Anthropic platform client.
 
         Args:
-            api_key: OpenAI API key
-            rate_limit: Requests per minute limit (default: 50)
+            api_key: Anthropic API key
+            rate_limit: Requests per minute limit (default: 100)
             **config: Additional configuration options:
-                - base_url: API base URL (default: https://api.openai.com/v1)
-                - default_model: Default model to use (default: gpt-4)
+                - base_url: API base URL (default: https://api.anthropic.com)
+                - default_model: Default model to use
+                  (default: claude-3-sonnet-20240229)
                 - max_tokens: Default max tokens (default: 500)
                 - temperature: Default temperature (default: 0.1)
         """
         super().__init__(api_key, rate_limit, **config)
-        self.base_url = config.get("base_url", "https://api.openai.com/v1")
-        self.default_model = config.get("default_model", "gpt-4")
+        self.base_url = config.get("base_url", "https://api.anthropic.com")
+        self.default_model = config.get("default_model", "claude-3-sonnet-20240229")
         self.max_tokens = config.get("max_tokens", 500)
         self.temperature = config.get("temperature", 0.1)
 
     def _get_default_headers(self) -> Dict[str, str]:
-        """Get default headers for OpenAI requests."""
+        """Get default headers for Anthropic requests."""
         return {
-            "Authorization": f"Bearer {self.api_key}",
+            "x-api-key": self.api_key,
             "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
             "User-Agent": "AEO-Audit-Tool/1.0",
         }
 
     def _get_endpoint_url(self) -> str:
-        """Get OpenAI chat completions endpoint URL."""
-        return f"{self.base_url}/chat/completions"
+        """Get Anthropic messages endpoint URL."""
+        return f"{self.base_url}/v1/messages"
 
     def _prepare_request_payload(self, question: str, **kwargs) -> Dict[str, Any]:
         """
-        Prepare OpenAI API request payload.
+        Prepare Anthropic API request payload.
 
         Args:
             question: The question/prompt to send
@@ -65,12 +67,11 @@ class OpenAIPlatform(BasePlatform):
             "messages": [{"role": "user", "content": question}],
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "temperature": kwargs.get("temperature", self.temperature),
-            "stream": False,
         }
 
     async def query(self, question: str, **kwargs) -> Dict[str, Any]:
         """
-        OpenAI-specific query implementation.
+        Anthropic-specific query implementation.
 
         Note: This method should not be called directly.
         Use safe_query() instead which provides error handling and rate limiting.
@@ -79,10 +80,10 @@ class OpenAIPlatform(BasePlatform):
 
     def extract_text_response(self, raw_response: Dict[str, Any]) -> str:
         """
-        Extract text from OpenAI response format.
+        Extract text from Anthropic response format.
 
         Args:
-            raw_response: Raw response from OpenAI API
+            raw_response: Raw response from Anthropic API
 
         Returns:
             Clean text content from the response
@@ -91,6 +92,6 @@ class OpenAIPlatform(BasePlatform):
             ValueError: If response format is invalid
         """
         try:
-            return raw_response["choices"][0]["message"]["content"].strip()
+            return raw_response["content"][0]["text"].strip()
         except (KeyError, IndexError, AttributeError) as e:
-            raise ValueError(f"Invalid OpenAI response format: {e}")
+            raise ValueError(f"Invalid Anthropic response format: {e}")
