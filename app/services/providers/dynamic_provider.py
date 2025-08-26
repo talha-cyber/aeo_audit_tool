@@ -193,6 +193,8 @@ class PostProcessor:
         # Split by newline and filter empty lines
         lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
+        original_casing_map = {}
+
         for line in lines:
             # Remove potential list markers like "1. ", "- ", or "* "
             cleaned_line = re.sub(r"^\s*[\d\.\-\*]+\s*", "", line)
@@ -208,13 +210,8 @@ class PostProcessor:
                 and normalized_question not in questions
             ):
                 questions.add(normalized_question)
-
-        # Create a map from normalized to original casing
-        original_casing_map = {
-            q.lower().rstrip("?").strip(): q
-            for q in lines
-            if q.lower().rstrip("?").strip() in questions
-        }
+                # Store mapping from normalized to cleaned original text
+                original_casing_map[normalized_question] = cleaned_line
 
         final_questions = [
             Question(

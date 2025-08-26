@@ -18,6 +18,21 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+# Helper to make data JSON serializable (UUID/datetime)
+
+
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(v) for v in value]
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
 from app.core.audit_config import get_audit_settings
 from app.models import audit as audit_models
 from app.models import question as question_models
@@ -348,6 +363,7 @@ class AuditProcessor:
             question_records = []
 
             for question_data in questions:
+                serialized_metadata = _to_jsonable(question_data.get("metadata", {}))
                 question_record = question_models.Question(
                     id=str(uuid.uuid4()),
                     audit_run_id=audit_run_id,
@@ -357,7 +373,7 @@ class AuditProcessor:
                     priority_score=question_data.get("priority_score", 0.0),
                     target_brand=question_data.get("target_brand"),
                     provider=question_data.get("provider", "question_engine"),
-                    question_metadata=question_data.get("metadata", {}),
+                    question_metadata=serialized_metadata,
                 )
                 question_records.append(question_record)
 
@@ -505,8 +521,9 @@ class AuditProcessor:
             # Get platform client
             platform = self.platform_manager.get_platform(platform_name)
 
-            # Execute query with platform
-            response_envelope = await platform.safe_query(question_text)
+            # Execute query with platform (using context manager to initialize session)
+            async with platform:
+                response_envelope = await platform.safe_query(question_text)
 
             processing_time = int((time.time() - start_time) * 1000)
 
@@ -538,10 +555,8 @@ class AuditProcessor:
             if self.brand_detector and not self.settings.AUDIT_SKIP_BRAND_DETECTION:
                 brand_detection_start = time.time()
                 try:
-                    detection_result = await self.brand_detector.detect_with_profile(
-                        text=response_text,
-                        target_brands=target_brands,
-                        market_code="US",  # Default market
+                    detection_result = await self.brand_detector.detect_brands(
+                        text=response_text, target_brands=target_brands
                     )
 
                     # Convert to serializable format
