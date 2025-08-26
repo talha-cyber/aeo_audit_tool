@@ -27,7 +27,7 @@ class GoogleAIPlatform(BasePlatform):
             rate_limit: Requests per minute limit (default: 60)
             **config: Additional configuration options:
                 - base_url: API base URL (default: https://generativelanguage.googleapis.com)
-                - default_model: Default model to use (default: gemini-pro)
+                - default_model: Default model to use (default: gemini-1.5-flash)
                 - max_tokens: Default max tokens (default: 500)
                 - temperature: Default temperature (default: 0.1)
         """
@@ -35,7 +35,7 @@ class GoogleAIPlatform(BasePlatform):
         self.base_url = config.get(
             "base_url", "https://generativelanguage.googleapis.com"
         )
-        self.default_model = config.get("default_model", "gemini-pro")
+        self.default_model = config.get("default_model", "gemini-1.5-flash")
         self.max_tokens = config.get("max_tokens", 500)
         self.temperature = config.get("temperature", 0.1)
 
@@ -95,4 +95,3 @@ class GoogleAIPlatform(BasePlatform):
             return raw_response["candidates"][0]["content"]["parts"][0]["text"].strip()
         except (KeyError, IndexError, AttributeError) as e:
             raise ValueError(f"Invalid Google AI response format: {e}")
-
