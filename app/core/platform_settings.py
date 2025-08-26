@@ -104,3 +104,4 @@ def get_all_platform_names() -> list[str]:
         List of platform names
     """
     return list(PLATFORM_CONFIGS.keys())
+

@@ -110,3 +110,4 @@ class PlatformRegistry:
             raise KeyError(f"Platform '{platform_name}' is not registered")
 
         del cls._platforms[platform_name]
+

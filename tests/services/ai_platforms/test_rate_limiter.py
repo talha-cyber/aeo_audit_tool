@@ -273,3 +273,4 @@ class TestAIRateLimiter:
         # Should have approximately 2 tokens refilled (2 per second * 1 second)
         # Capped at burst_limit
         assert limiter.tokens == 2
+

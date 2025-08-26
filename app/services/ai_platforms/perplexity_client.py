@@ -97,3 +97,4 @@ class PerplexityPlatform(BasePlatform):
             return raw_response["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError, AttributeError) as e:
             raise ValueError(f"Invalid Perplexity response format: {e}")
+

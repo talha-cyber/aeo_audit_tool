@@ -95,3 +95,4 @@ class GoogleAIPlatform(BasePlatform):
             return raw_response["candidates"][0]["content"]["parts"][0]["text"].strip()
         except (KeyError, IndexError, AttributeError) as e:
             raise ValueError(f"Invalid Google AI response format: {e}")
+

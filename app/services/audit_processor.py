@@ -1,8 +1,9 @@
 """
 Main audit processor orchestrator for AEO competitive intelligence audits.
 
-This module coordinates the entire audit workflow from question generation to brand detection,
-managing multi-platform AI queries with proper concurrency, rate limiting, and progress tracking.
+This module coordinates the entire audit workflow from question generation to brand
+detection, managing multi-platform AI queries with proper concurrency, rate limiting,
+and progress tracking.
 """
 
 from __future__ import annotations
@@ -188,7 +189,8 @@ class AuditProcessor:
             AuditStatus.RUNNING.value,
         ]:
             raise ValueError(
-                f"Audit run {audit_run_id} is not in executable state: {audit_run.status}"
+                f"Audit run {audit_run_id} is not in executable state: "
+                f"{audit_run.status}"
             )
 
         # Validate configuration

@@ -95,3 +95,4 @@ class AnthropicPlatform(BasePlatform):
             return raw_response["content"][0]["text"].strip()
         except (KeyError, IndexError, AttributeError) as e:
             raise ValueError(f"Invalid Anthropic response format: {e}")
+
