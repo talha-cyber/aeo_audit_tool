@@ -7,6 +7,10 @@ httpx>=0.26.0
 aiohttp>=3.8.0
 tenacity>=8.2.3
 
+# Scheduling
+croniter>=1.4.1
+pytz>=2023.3
+
 # Database
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9

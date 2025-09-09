@@ -13,13 +13,16 @@ from celery.signals import task_failure, task_postrun, task_prerun
 
 from app.core.audit_config import get_audit_settings
 from app.core.celery_app import celery_app
+from app.core.config import settings as core_settings
 from app.db.session import SessionLocal
 from app.services.audit_context import add_audit_context, contextual_logger
 from app.services.audit_metrics import get_audit_metrics
 from app.services.audit_processor import AuditProcessor
 from app.services.platform_manager import PlatformManager
 from app.services.progress_tracker import create_progress_tracker
+from app.services.report_generator import ReportGenerator
 from app.utils.logger import get_logger
+from app.utils.resilience.dead_letter import DeadLetterQueue
 
 logger = get_logger(__name__)
 
@@ -199,6 +202,32 @@ async def run_audit_async(task_instance, audit_run_id: str) -> Dict[str, Any]:
                     error_type=error_type,
                 )
 
+                # Send to DLQ if enabled
+                try:
+                    if core_settings.DLQ_ENABLED:
+                        dlq = DeadLetterQueue(max_retries=core_settings.DLQ_MAX_RETRIES)
+                        payload = {
+                            "audit_run_id": audit_run_id,
+                            "task_id": task_instance.request.id,
+                            "worker_id": task_instance.request.hostname,
+                            "error_type": error_type,
+                            "error_message": error_message,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                        await dlq.send_to_dlq(
+                            payload,
+                            original_queue="audit:tasks",
+                            error=e,
+                        )
+                        contextual_logger.warning(
+                            "Task payload sent to DLQ", dlq_queue="audit:tasks"
+                        )
+                except Exception as dlq_err:
+                    contextual_logger.error(
+                        "Failed to send to DLQ",
+                        dlq_error=str(dlq_err),
+                    )
+
                 # Final failure - re-raise to mark task as failed
                 raise
 
@@ -246,17 +275,21 @@ async def generate_report_async(
         db = SessionLocal()
 
         try:
-            # TODO: Implement report generation
-            # This would integrate with the report generator from the build plan
-            # For now, return a placeholder response
+            # Initialize and run the report generator
+            report_generator = ReportGenerator(db_session=db)
+            report_path = report_generator.generate_audit_report(
+                audit_run_id=audit_run_id, report_type=report_type
+            )
 
-            contextual_logger.info("Report generation completed (placeholder)")
+            contextual_logger.info(
+                "Report generation completed successfully", report_path=report_path
+            )
 
             return {
                 "status": "completed",
                 "audit_run_id": audit_run_id,
                 "report_type": report_type,
-                "report_path": f"reports/audit_{audit_run_id}_{report_type}.pdf",
+                "report_path": report_path,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 

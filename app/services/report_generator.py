@@ -124,7 +124,10 @@ class ReportGenerator:
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         story = []
 
-        if report_type == "comprehensive":
+        # Check for v2 report types
+        if report_type in ["v2", "v2_comprehensive", "v2_enhanced"]:
+            return self._generate_v2_report(audit_run_id, report_type, filepath)
+        elif report_type == "comprehensive":
             story = self._build_comprehensive_report(audit_data)
         elif report_type == "summary":
             story = self._build_summary_report(audit_data)
@@ -581,3 +584,47 @@ class ReportGenerator:
         ]
 
         return recommendations
+
+    def _generate_v2_report(
+        self, audit_run_id: str, report_type: str, filepath: str
+    ) -> str:
+        """
+        Generate v2 enhanced report using the new report engine.
+
+        Args:
+            audit_run_id: ID of the audit run
+            report_type: V2 report type
+            filepath: Output file path
+
+        Returns:
+            Path to generated report
+        """
+        try:
+            from app.reports.v2.engine import ReportEngineV2
+
+            # Determine theme based on report type
+            theme_key = "default"
+            if report_type == "v2_enhanced":
+                theme_key = "corporate"
+
+            # Initialize v2 engine
+            engine = ReportEngineV2(
+                db_session=self.db, theme_key=theme_key, template_version="v2.0"
+            )
+
+            # Generate report
+            result_path = engine.generate_report(
+                audit_run_id=audit_run_id, output_path=filepath, report_type=report_type
+            )
+
+            logger.info(f"Successfully generated v2 report: {result_path}")
+            return result_path
+
+        except ImportError as e:
+            logger.error(f"V2 report engine not available: {e}")
+            raise ValueError(
+                "V2 report generation requires the enhanced report engine module"
+            )
+        except Exception as e:
+            logger.error(f"V2 report generation failed: {e}")
+            raise

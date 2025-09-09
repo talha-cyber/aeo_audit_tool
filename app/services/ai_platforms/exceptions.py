@@ -66,4 +66,3 @@ class MalformedResponseError(PlatformError):
     """
 
     pass
-

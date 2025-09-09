@@ -3,6 +3,8 @@ services:
     build: .
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
@@ -13,8 +15,7 @@ services:
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OPENAI_API_KEY=dummy_key
-      - ANTHROPIC_API_KEY=dummy_key
+      - RUNNING_IN_DOCKER=true
     depends_on:
       - db
       - redis
@@ -24,7 +25,9 @@ services:
 
   worker:
     build: .
-    command: celery -A celery_worker --loglevel=info
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
@@ -35,8 +38,7 @@ services:
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OPENAI_API_KEY=dummy_key
-      - ANTHROPIC_API_KEY=dummy_key
+      - RUNNING_IN_DOCKER=true
     depends_on:
       - db
       - redis

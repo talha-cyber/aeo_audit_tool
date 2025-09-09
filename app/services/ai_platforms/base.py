@@ -14,7 +14,15 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 
+from app.core.config import settings
 from app.utils.logger import get_logger
+from app.utils.rate_limiter import RedisTokenBucket
+from app.utils.resilience import (
+    Bulkhead,
+    CircuitBreaker,
+    ExponentialBackoffStrategy,
+    retry,
+)
 
 from .exceptions import (
     AuthenticationError,
@@ -101,8 +109,7 @@ class BasePlatform(ABC):
 
     Provides:
     - Rate limiting per platform
-    - Circuit breaker pattern for resilience
-    - Standardized error handling and retries
+    - Circuit breaker + retry + bulkhead for resilience
     - Async context manager for session management
     - Unified response format
     """
@@ -117,17 +124,29 @@ class BasePlatform(ABC):
             **config: Additional platform-specific configuration
         """
         self.api_key = api_key
-        self.rate_limiter = AIRateLimiter(rate_limit)
+        # Prefer Redis-backed global token bucket; fallback to in-process limiter
+        try:
+            self.rate_limiter = RedisTokenBucket(
+                name=f"platform:{self.platform_name}",
+                requests_per_minute=rate_limit,
+            )
+        except Exception:
+            self.rate_limiter = AIRateLimiter(rate_limit)
         self.platform_name = self.__class__.__name__.lower().replace("platform", "")
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
 
-        # Circuit breaker state
-        self.failure_count = 0
-        self.last_failure_time = 0
-        self.circuit_open = False
-        self.max_failures = 5
-        self.circuit_timeout = 300  # 5 minutes
+        # Resilience components
+        self._cb = CircuitBreaker(
+            name=f"platform_{self.platform_name}",
+            failure_threshold=settings.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+            recovery_timeout=float(settings.CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS),
+            half_open_success_threshold=settings.CIRCUIT_BREAKER_HALF_OPEN_SUCCESS_THRESHOLD,
+        )
+        self._bh = Bulkhead(
+            name=f"platform_{self.platform_name}",
+            max_concurrency=settings.BULKHEAD_DEFAULT_MAX_CONCURRENCY,
+        )
 
     async def __aenter__(self):
         """Create HTTP session when entering async context."""
@@ -197,84 +216,63 @@ class BasePlatform(ABC):
             - error: str or None
             - metadata: Dict[str, Any]
         """
-        if self._is_circuit_open():
-            return self._create_error_response("Circuit breaker open")
-
         await self.rate_limiter.acquire()
 
         start_time = time.time()
-        retries = 0
-        max_retries = 3
 
-        while retries <= max_retries:
+        @retry(
+            max_attempts=settings.RETRY_MAX_ATTEMPTS,
+            exceptions=(RateLimitError, TransientError),
+            backoff_strategy=ExponentialBackoffStrategy(
+                base_delay_seconds=settings.RETRY_BACKOFF_BASE_SECONDS,
+                multiplier=settings.RETRY_BACKOFF_MULTIPLIER,
+                max_delay_seconds=settings.RETRY_BACKOFF_MAX_SECONDS,
+            ),
+            use_jitter=settings.RETRY_USE_JITTER,
+        )
+        async def _do() -> Dict[str, Any]:
             try:
-                response = await self._execute_query_with_timeout(question, **kwargs)
-
-                # Reset circuit breaker on success
-                self.failure_count = 0
-                self.circuit_open = False
-
-                return {
-                    "success": True,
-                    "response": response,
-                    "platform": self.platform_name,
-                    "error": None,
-                    "metadata": {
-                        "duration": time.time() - start_time,
-                        "retries": retries,
-                        "timestamp": time.time(),
-                    },
-                }
-
-            except RateLimitError as e:
-                logger.warning(
-                    "Rate limited by platform",
-                    platform=self.platform_name,
-                    retry_after=e.retry_after,
-                    operation="rate_limit",
+                # For RateLimitError, honor Retry-After before escalating to decorator backoff
+                return await self._bh.run(
+                    self._cb.decorate(self._execute_query_with_timeout),
+                    question,
+                    **kwargs,
                 )
-                await asyncio.sleep(e.retry_after or 60)
-                retries += 1
+            except RateLimitError as rl:
+                await asyncio.sleep(rl.retry_after or 60)
+                # re-raise for retry decorator to count an attempt
+                raise
 
-            except TransientError as e:
-                logger.warning(
-                    "Transient error from platform",
-                    platform=self.platform_name,
-                    error_message=str(e),
-                    retries=retries,
-                    operation="transient_error",
-                )
-                if retries < max_retries:
-                    await asyncio.sleep(2**retries)  # Exponential backoff
-                retries += 1
-
-            except (AuthenticationError, QuotaExceededError) as e:
-                logger.error(
-                    "Non-retryable error from platform",
-                    platform=self.platform_name,
-                    error_type=type(e).__name__,
-                    error_message=str(e),
-                    operation="auth_error",
-                )
-                self._record_failure()
-                return self._create_error_response(str(e))
-
-            except Exception as e:
-                logger.error(
-                    "Unexpected error from platform",
-                    platform=self.platform_name,
-                    error_type=type(e).__name__,
-                    error_message=str(e),
-                    retries=retries,
-                    operation="unexpected_error",
-                )
-                self._record_failure()
-                if retries >= max_retries:
-                    return self._create_error_response(f"Max retries exceeded: {e}")
-                retries += 1
-
-        self._record_failure()
-        return self._create_error_response("Max retries exceeded")
+        try:
+            response = await _do()
+            return {
+                "success": True,
+                "response": response,
+                "platform": self.platform_name,
+                "error": None,
+                "metadata": {
+                    "duration": time.time() - start_time,
+                    "timestamp": time.time(),
+                },
+            }
+        except (AuthenticationError, QuotaExceededError) as e:
+            logger.error(
+                "Non-retryable error from platform",
+                platform=self.platform_name,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                operation="auth_error",
+            )
+            return self._create_error_response(str(e))
+        except Exception as e:
+            logger.error(
+                "Platform call failed after retries",
+                platform=self.platform_name,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                operation="call_failed",
+            )
+            return self._create_error_response(f"Max retries exceeded: {e}")
 
     async def _execute_query_with_timeout(
         self, question: str, **kwargs
@@ -321,38 +319,6 @@ class BasePlatform(ABC):
             raise TransientError("Request timeout")
         except aiohttp.ClientError as e:
             raise TransientError(f"Network error: {e}")
-
-    def _is_circuit_open(self) -> bool:
-        """Check if circuit breaker is currently open."""
-        if not self.circuit_open:
-            return False
-
-        # Check if circuit timeout has passed
-        if time.time() - self.last_failure_time > self.circuit_timeout:
-            self.circuit_open = False
-            self.failure_count = 0
-            logger.info(
-                "Circuit breaker reset",
-                platform=self.platform_name,
-                operation="circuit_breaker_reset",
-            )
-            return False
-
-        return True
-
-    def _record_failure(self) -> None:
-        """Record a failure for circuit breaker tracking."""
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-
-        if self.failure_count >= self.max_failures:
-            self.circuit_open = True
-            logger.warning(
-                "Circuit breaker opened",
-                platform=self.platform_name,
-                failure_count=self.failure_count,
-                operation="circuit_breaker_open",
-            )
 
     def _create_error_response(self, error_message: str) -> Dict[str, Any]:
         """Create standardized error response."""

@@ -433,4 +433,3 @@ class TestPlatformManager:
 
             assert health_status["openai"] is True
             assert health_status["anthropic"] is False
-

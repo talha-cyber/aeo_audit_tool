@@ -46,6 +46,23 @@ class Settings(BaseSettings):
     LLM_INPUT_COST_PER_1K: float = 0.0005
     LLM_OUTPUT_COST_PER_1K: float = 0.0015
 
+    # Resilience defaults
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 5
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS: int = 60
+    CIRCUIT_BREAKER_HALF_OPEN_SUCCESS_THRESHOLD: int = 2
+
+    RETRY_MAX_ATTEMPTS: int = 3
+    RETRY_BACKOFF_BASE_SECONDS: float = 0.2
+    RETRY_BACKOFF_MULTIPLIER: float = 2.0
+    RETRY_BACKOFF_MAX_SECONDS: float = 5.0
+    RETRY_USE_JITTER: bool = True
+
+    DLQ_ENABLED: bool = True
+    DLQ_MAX_RETRIES: int = 3
+    DLQ_RETENTION_SECONDS: int = 7 * 24 * 3600
+
+    BULKHEAD_DEFAULT_MAX_CONCURRENCY: int = 10
+
     @property
     def database_url(self) -> str:
         """Construct the database URL from individual components."""

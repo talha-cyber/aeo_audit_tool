@@ -418,4 +418,3 @@ class TestScalabilityLimits:
         # Final check - should have cleaned up old requests
         final_size = len(limiter.requests)
         assert final_size <= 100  # Should clean up aggressively
-
