@@ -336,8 +336,8 @@ Next Integration Targets:
 ├── security-scan.yml          # Dedicated security pipeline
 ├── deploy-staging.yml         # Staging deployment
 ├── deploy-production.yml      # Production deployment
-├── rollback.yml              # Automated rollback
-└── performance-test.yml      # Performance testing
+├── rollback.yml               # Automated rollback
+└── performance-test.yml       # Performance testing
 ```
 
 **Key Features:**
@@ -375,6 +375,38 @@ deployment/
     └── migrate.sh
 ```
 
+### 4.3 Implementation Status & Usage
+
+Status: Implemented CI/CD workflows and deployment scaffolding.
+
+Added Workflows:
+- Staging deploy: `.github/workflows/deploy-staging.yml`
+- Production deploy: `.github/workflows/deploy-production.yml`
+- Rollback: `.github/workflows/rollback.yml`
+- Performance tests: `.github/workflows/performance-test.yml`
+
+Deployment Scripts:
+- Deploy: `deployment/scripts/deploy.sh` (supports blue/green or rolling)
+- Health: `deployment/scripts/health-check.sh`
+- Migrate: `deployment/scripts/migrate.sh`
+- Rollback: `deployment/scripts/rollback.sh`
+
+Kubernetes/IaC:
+- K8s placeholders under `deployment/k8s` for future migration
+- Terraform placeholders under `deployment/terraform`
+
+Required Secrets:
+- Staging: `SSH_HOST_STAGING`, `SSH_USER_STAGING`, `SSH_KEY_STAGING`
+- Production: `SSH_HOST_PROD`, `SSH_USER_PROD`, `SSH_KEY_PROD`
+
+Container Registry:
+- Using GHCR (`ghcr.io/<owner>/<repo>`). Build tags: `staging`, `staging-<sha>`, `prod`, `prod-<sha>`
+
+Usage:
+- Staging: push to `staging` or run workflow dispatch.
+- Production: run Deploy Production workflow; defaults to blue/green.
+- Rollback: run Rollback workflow with `target_image` (e.g., `ghcr.io/owner/repo:prod-<sha>`).
+
 ---
 
 ## Phase 5: Embedded Security Architecture
@@ -388,8 +420,7 @@ app/security/
 ├── auth/
 │   ├── __init__.py
 │   ├── jwt_handler.py         # JWT token management
-│   ├── rate_limiter.py        # Enhanced rate limiting
-│   └── session_manager.py     # Session management
+│   └── session_manager.py     # Session management (Redis)
 ├── encryption/
 │   ├── __init__.py
 │   ├── field_encryption.py    # Database field encryption
@@ -419,6 +450,33 @@ app/security/
 - Input validation and sanitization
 - Security headers and CORS policies
 - Regular security assessments
+
+### 5.3 Implementation Status & Notes
+
+Status: Core security modules implemented and wired.
+
+Implemented modules:
+- JWT auth: `app/security/auth/jwt_handler.py`
+- Sessions (Redis): `app/security/auth/session_manager.py`
+- Field encryption (Fernet): `app/security/encryption/field_encryption.py` (requires `cryptography`)
+- API key manager: `app/security/encryption/api_key_manager.py`
+- Access logger: `app/security/audit/access_logger.py`
+- Change tracker: `app/security/audit/change_tracker.py`
+- Compliance snapshot: `app/security/audit/compliance.py`
+- Input sanitizer: `app/security/validation/input_sanitizer.py`
+- Schema validation helper: `app/security/validation/schema_validator.py`
+- Security headers middleware: `app/security/validation/security_headers.py` (enabled in `app/main.py`)
+- Threat detection heuristics: `app/security/monitoring/threat_detection.py`
+- Security metrics: `app/security/monitoring/security_metrics.py`
+
+Config additions (env-overridable) in `app/core/config.py`:
+- `ENABLE_SECURITY_HEADERS`, `CSP_POLICY`, `JWT_ALGORITHM`, `JWT_EXPIRES_MINUTES`, `JWT_ISSUER`, `SESSION_TTL_SECONDS`, `FIELD_ENCRYPTION_KEY`, `API_KEY_PEPPER`
+
+Usage:
+- JWT: `from app.security.auth.jwt_handler import get_jwt_handler`
+- Encrypt: `FieldEncryptor().encrypt(value)` / `.decrypt(token)`
+- Sessions: `SessionManager(ttl).create/get_user/revoke`
+- Security headers: auto-enabled; adjust CSP via `CSP_POLICY`
 
 ---
 
@@ -451,6 +509,65 @@ app/monitoring/
 ```
 
 ---
+
+### 6.1 Implementation Status & Usage
+
+Status: Implemented monitoring modules and integrated middleware.
+
+Added Modules:
+- Metrics: `business_metrics.py`, `technical_metrics.py`, `custom_metrics.py`
+- Tracing: `opentelemetry_setup.py` (OTLP exporter), `correlation.py` (X-Request-ID)
+- Alerting: `alert_manager.py`, `notification.py` (webhook), `escalation.py`
+- Dashboards: Grafana `app/monitoring/dashboards/grafana_templates/aeo_overview.json`
+- Prometheus rules: `app/monitoring/dashboards/prometheus_rules/aeo_alerts.yml`
+
+App Integration:
+- CorrelationIdMiddleware added; response includes `X-Request-ID`.
+- Optional OpenTelemetry tracing emits spans when `TRACING_ENABLED=true`.
+
+Config Additions (env-overridable in `app/core/config.py`):
+- `TRACING_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `TRACING_SAMPLE_RATIO`, `SERVICE_NAME`, `ALERT_WEBHOOK_URL`
+
+Examples:
+```python
+from app.monitoring.metrics.business_metrics import set_success_rate, inc_client_audits
+from app.monitoring.metrics.technical_metrics import update_process_metrics, update_redis_queue_depth
+
+set_success_rate(0.92)
+inc_client_audits(client_id="acme")
+update_process_metrics()
+await update_redis_queue_depth("dlq:audit:tasks")
+
+from app.monitoring.alerting.alert_manager import AlertManager, ThresholdRule
+from app.monitoring.metrics.business_metrics import AUDIT_SUCCESS_RATE
+
+mgr = AlertManager()
+mgr.add_rule(ThresholdRule(
+    name="LowSuccessRate",
+    metric_getter=lambda: AUDIT_SUCCESS_RATE._value.get(),
+    threshold=0.8,
+    comparison="<",
+    severity="warning",
+    description="Audit success rate below 80%",
+))
+fired = mgr.evaluate()
+```
+
+Grafana/Prometheus:
+- Import dashboard JSON and point Prometheus to `prometheus_rules/aeo_alerts.yml`.
+- Compose stack already includes Prometheus/Grafana containers (see `docker-compose.prod.yml`).
+
+Monitoring API:
+- GET `/api/v1/monitoring/snapshot` provides DLQ depths and process CPU/memory.
+
+Prometheus Config (Compose):
+- `monitoring/prometheus/prometheus.prod.yml` is mounted as Prometheus config.
+- Alert rules mounted at `/etc/prometheus/aeo_alerts.yml` via compose.
+
+Testing:
+- Correlation ID middleware test added under `tests/monitoring/test_correlation_id.py`.
+ - Alert rule evaluation test in `tests/monitoring/test_alert_manager.py`.
+ - Monitoring snapshot endpoint test in `tests/monitoring/test_snapshot_endpoint.py`.
 
 ## Implementation Timeline
 

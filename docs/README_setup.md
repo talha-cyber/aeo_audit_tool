@@ -95,12 +95,12 @@ AEO_Audit_tool/
 ├── Dockerfile               # Container configuration
 ├── docker-compose.yml       # Multi-service setup
 ├── requirements.txt         # Python dependencies
-└── README_setup.md         # This file
+└── docs/README_setup.md         # This file
 ```
 
 ## Next Steps
 
-This is the basic skeleton. To implement the full AEO audit functionality, refer to the ARCHITECTURE.md file for detailed implementation phases including:
+This is the basic skeleton. To implement the full AEO audit functionality, refer to the docs/ARCHITECTURE.md file for detailed implementation phases including:
 
 - Database models and migrations
 - AI platform integrations

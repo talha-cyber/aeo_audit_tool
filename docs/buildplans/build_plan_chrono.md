@@ -1,6 +1,6 @@
 # AEO Audit Tool: Chronological Build Plan (Hardened)
 
-This document outlines a clear, step-by-step roadmap for building the AEO Audit Tool. It integrates the original `ARCHITECTURE.md` goals with a disciplined, vertical-slice approach to mitigate risk and deliver value iteratively.
+This document outlines a clear, step-by-step roadmap for building the AEO Audit Tool. It integrates the original `docs/ARCHITECTURE.md` goals with a disciplined, vertical-slice approach to mitigate risk and deliver value iteratively.
 
 ---
 

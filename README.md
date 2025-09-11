@@ -76,4 +76,5 @@ Notes
 
 This project is async-first and modular
 All logic is structured for testability and CI/CD
-Cursor AI tools reference ARCHITECTURE.md for module responsibilities
+Cursor AI tools reference docs/ARCHITECTURE.md for module responsibilities
+See docs/ for all documentation, build plans, and runbooks.
