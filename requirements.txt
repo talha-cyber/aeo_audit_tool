@@ -12,7 +12,7 @@ croniter>=1.4.1
 pytz>=2023.3
 
 # Database
-sqlalchemy==2.0.23
+sqlalchemy==2.0.43
 psycopg2-binary==2.9.9
 alembic==1.12.1
 
