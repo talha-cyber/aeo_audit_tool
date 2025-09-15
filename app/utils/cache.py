@@ -11,6 +11,25 @@ from app.services import metrics
 
 logger = structlog.get_logger(__name__)
 
+# Global cache instance for backward compatibility
+_cache_instance = None
+
+
+def get_cache_client():
+    """
+    Get or create a global cache client instance.
+
+    This function provides backward compatibility for modules that expect
+    a get_cache_client() function while maintaining the CacheManager architecture.
+
+    Returns:
+        CacheManager: The global cache manager instance
+    """
+    global _cache_instance
+    if _cache_instance is None:
+        _cache_instance = CacheManager()
+    return _cache_instance
+
 
 class CacheManager:
     """

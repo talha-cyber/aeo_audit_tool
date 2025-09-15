@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aeo-web
+  namespace: aeo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aeo-web
+  template:
+    metadata:
+      labels:
+        app: aeo-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/owner/repo:prod
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          env:
+            - name: APP_ENV
+              value: production

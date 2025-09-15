@@ -108,3 +108,26 @@ This is the basic skeleton. To implement the full AEO audit functionality, refer
 - Question generation
 - Report generation
 - API endpoints
+
+## Language Selection (EN/DE)
+
+To run audits in a specific language, set `language` in your audit configuration. The question engine will generate localized questions (currently supports English `en` and German `de`).
+
+Example audit config snippet:
+
+```json
+{
+  "client": {
+    "name": "TestBrand",
+    "competitors": ["CompA", "CompB"],
+    "industry": "SaaS",
+    "product_type": "CRM"
+  },
+  "platforms": ["openai"],
+  "question_categories": [],
+  "language": "de",
+  "max_questions": 50
+}
+```
+
+If omitted, `language` defaults to `"en"`.

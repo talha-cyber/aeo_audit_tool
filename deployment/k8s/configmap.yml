@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aeo-config
+  namespace: aeo
+data:
+  APP_ENV: production

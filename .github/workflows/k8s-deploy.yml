@@ -1,0 +1,31 @@
+name: K8s Apply Manifests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.4'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${KUBE_CONFIG}" > ~/.kube/config
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f deployment/k8s/namespace.yml
+          kubectl apply -f deployment/k8s/configmap.yml -n aeo
+          kubectl apply -f deployment/k8s/deployment.yml -n aeo
+          kubectl apply -f deployment/k8s/service.yml -n aeo
+          kubectl apply -f deployment/k8s/ingress.yml -n aeo

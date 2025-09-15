@@ -259,6 +259,7 @@ class AuditProcessor:
                 "target_brands": target_brands,
                 "platforms": available_platforms,
                 "categories": config.get("question_categories", []),
+                "language": config.get("language", "en"),
             }
 
     async def _generate_questions(
@@ -285,6 +286,7 @@ class AuditProcessor:
                 industry=question_context.industry,
                 product_type=question_context.product_type,
                 audit_run_id=question_context.audit_run_id,
+                language=context.get("language", "en"),
                 max_questions=context.get("max_questions", 100),
             )
 

@@ -1,0 +1,26 @@
+groups:
+  - name: aeo.alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate (>5% for 10m)"
+
+      - alert: DLQBacklogHigh
+        expr: tech_redis_queue_depth{queue="dlq:audit:tasks"} > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ backlog high (>100 for 15m)"
+
+      - alert: CircuitOpenTooLong
+        expr: avg_over_time(circuit_state[15m]) > 0.8
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuits predominantly OPEN over last 15m"

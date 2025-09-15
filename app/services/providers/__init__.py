@@ -12,6 +12,9 @@ class QuestionContext(BaseModel):
     industry: str
     product_type: str
     audit_run_id: uuid.UUID
+    # Optional localization and market context (non-breaking)
+    language: str = "en"  # ISO code, e.g., 'en', 'de'
+    market: Optional[str] = None  # e.g., 'US', 'DE', 'EU'
 
 
 class Question(BaseModel):

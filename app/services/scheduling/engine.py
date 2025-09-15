@@ -13,9 +13,9 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from app.models.scheduling import (
-    ExecutionStatus,
-    JobStatus,
+    JobExecutionStatus,
     ScheduledJob,
+    ScheduledJobStatus,
     TriggerType,
 )
 from app.utils.logger import get_logger
@@ -62,7 +62,7 @@ class ExecutionResult:
 
     execution_id: str
     job_id: str
-    status: ExecutionStatus
+    status: JobExecutionStatus
     started_at: datetime
     finished_at: Optional[datetime]
     runtime_seconds: Optional[float]
@@ -225,7 +225,7 @@ class SchedulerEngine:
                 "trigger_type": TriggerType(job_def.trigger_config["trigger_type"]),
                 "trigger_config": job_def.trigger_config,
                 "job_data": job_def.job_data,
-                "status": JobStatus.ACTIVE,
+                "status": ScheduledJobStatus.ACTIVE,
                 "priority": job_def.priority,
                 "timeout_seconds": job_def.timeout_seconds,
                 "max_retries": job_def.max_retries,
@@ -270,7 +270,7 @@ class SchedulerEngine:
             self.repository.update_job(
                 job_id,
                 {
-                    "status": JobStatus.CANCELLED,
+                    "status": ScheduledJobStatus.CANCELLED,
                     "next_run_time": None,
                     "updated_at": datetime.now(timezone.utc),
                 },
@@ -351,7 +351,7 @@ class SchedulerEngine:
 
     async def list_jobs(
         self,
-        status: Optional[JobStatus] = None,
+        status: Optional[ScheduledJobStatus] = None,
         trigger_type: Optional[TriggerType] = None,
         tags: Optional[List[str]] = None,
         limit: int = 100,
@@ -562,7 +562,10 @@ class SchedulerEngine:
         )
 
     async def _on_execution_complete(
-        self, context: ExecutionContext, status: ExecutionStatus, runtime_seconds: float
+        self,
+        context: ExecutionContext,
+        status: JobExecutionStatus,
+        runtime_seconds: float,
     ) -> None:
         """Handle job execution completion"""
         logger.debug(

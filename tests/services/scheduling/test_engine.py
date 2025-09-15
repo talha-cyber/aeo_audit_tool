@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 
-from app.models.scheduling import ExecutionStatus, JobStatus, ScheduledJob, TriggerType
+from app.models.scheduling import (
+    JobExecutionStatus,
+    ScheduledJob,
+    ScheduledJobStatus,
+    TriggerType,
+)
 from app.services.scheduling.engine import (
     JobDefinition,
     SchedulerEngine,
@@ -277,7 +282,7 @@ class TestJobScheduling:
         # Verify update call
         update_call = mock_repository.update_job.call_args[0]
         assert update_call[0] == job_id  # job_id
-        assert update_call[1]["status"] == JobStatus.CANCELLED
+        assert update_call[1]["status"] == ScheduledJobStatus.CANCELLED
         assert update_call[1]["next_run_time"] is None
 
     @pytest.mark.asyncio
@@ -294,7 +299,7 @@ class TestJobScheduling:
         mock_repository.update_job.assert_not_called()
 
 
-class TestJobStatusAndListing:
+class TestScheduledJobStatusAndListing:
     """Test suite for job status and listing operations"""
 
     @pytest.mark.asyncio
@@ -313,7 +318,7 @@ class TestJobStatusAndListing:
         mock_job.job_id = job_id
         mock_job.name = "test_job"
         mock_job.description = "Test job"
-        mock_job.status = JobStatus.ACTIVE
+        mock_job.status = ScheduledJobStatus.ACTIVE
         mock_job.trigger_type = TriggerType.CRON
         mock_job.trigger_config = {"trigger_type": "cron", "expression": "0 9 * * *"}
         mock_job.next_run_time = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -330,7 +335,7 @@ class TestJobStatusAndListing:
         mock_executions = [Mock() for _ in range(2)]
         for i, exec in enumerate(mock_executions):
             exec.execution_id = f"exec-{i}"
-            exec.status = ExecutionStatus.SUCCESS
+            exec.status = JobExecutionStatus.SUCCESS
             exec.started_at = datetime.now(timezone.utc) - timedelta(hours=i + 1)
             exec.finished_at = (
                 datetime.now(timezone.utc)
@@ -361,7 +366,7 @@ class TestJobStatusAndListing:
         assert result is not None
         assert result["job_id"] == job_id
         assert result["name"] == "test_job"
-        assert result["status"] == JobStatus.ACTIVE.value
+        assert result["status"] == ScheduledJobStatus.ACTIVE.value
         assert result["trigger_type"] == TriggerType.CRON.value
         assert "active_execution" in result
         assert result["active_execution"]["execution_id"] == "exec-active"
@@ -387,7 +392,7 @@ class TestJobStatusAndListing:
             job = Mock(spec=ScheduledJob)
             job.job_id = f"job-{i}"
             job.name = f"test_job_{i}"
-            job.status = JobStatus.ACTIVE
+            job.status = ScheduledJobStatus.ACTIVE
             job.trigger_type = TriggerType.CRON
             job.next_run_time = datetime.now(timezone.utc) + timedelta(hours=i + 1)
             job.priority = 5
@@ -399,18 +404,18 @@ class TestJobStatusAndListing:
         # Mock latest executions for each job
         for job in mock_jobs:
             mock_execution = Mock()
-            mock_execution.status = ExecutionStatus.SUCCESS
+            mock_execution.status = JobExecutionStatus.SUCCESS
             mock_execution.started_at = datetime.now(timezone.utc) - timedelta(hours=1)
             mock_execution.runtime_seconds = 300
             mock_repository.get_job_executions.return_value = [mock_execution]
 
-        result = await scheduler_engine.list_jobs(status=JobStatus.ACTIVE)
+        result = await scheduler_engine.list_jobs(status=ScheduledJobStatus.ACTIVE)
 
         assert len(result) == 3
         for i, job_info in enumerate(result):
             assert job_info["job_id"] == f"job-{i}"
             assert job_info["name"] == f"test_job_{i}"
-            assert job_info["status"] == JobStatus.ACTIVE.value
+            assert job_info["status"] == ScheduledJobStatus.ACTIVE.value
             assert "latest_execution" in job_info
 
 
@@ -566,7 +571,7 @@ class TestExecutionCallbacks:
         context.job_id = "job-123"
         context.execution_id = "exec-456"
 
-        status = ExecutionStatus.SUCCESS
+        status = JobExecutionStatus.SUCCESS
         runtime_seconds = 125.5
 
         # Should not raise error

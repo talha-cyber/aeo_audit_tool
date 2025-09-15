@@ -1,0 +1,30 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_image:
+        description: "Full image (registry/repo:tag) to roll back to"
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for scripts)
+        uses: actions/checkout@v4
+
+      - name: Rollback via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_PROD }}
+          username: ${{ secrets.SSH_USER_PROD }}
+          key: ${{ secrets.SSH_KEY_PROD }}
+          script_stop: true
+          script: |
+            export IMAGE=${{ github.event.inputs.target_image }}
+            bash -s << 'EOF'
+            set -euo pipefail
+            cd ~/aeo
+            IMAGE_TAG=$IMAGE ./deployment/scripts/rollback.sh
+            EOF

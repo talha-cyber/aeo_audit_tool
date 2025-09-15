@@ -16,11 +16,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.models.scheduling import (
-    ExecutionStatus,
     JobDependency,
     JobExecution,
-    JobStatus,
+    JobExecutionStatus,
     ScheduledJob,
+    ScheduledJobStatus,
     SchedulerLock,
     SchedulerMetrics,
     TriggerType,
@@ -196,7 +196,7 @@ class SchedulingRepository:
             logger.error(f"Failed to delete job {job_id}: {e}", exc_info=True)
             raise SchedulingRepositoryError(f"Failed to delete job: {e}")
 
-    def get_jobs_by_status(self, status: JobStatus) -> List[ScheduledJob]:
+    def get_jobs_by_status(self, status: ScheduledJobStatus) -> List[ScheduledJob]:
         """Get all jobs with specified status"""
         try:
             return (
@@ -220,7 +220,7 @@ class SchedulingRepository:
             return (
                 self.db.query(ScheduledJob)
                 .filter(
-                    ScheduledJob.status == JobStatus.ACTIVE,
+                    ScheduledJob.status == ScheduledJobStatus.ACTIVE,
                     ScheduledJob.next_run_time <= current_time,
                     ScheduledJob.next_run_time.isnot(None),
                 )
@@ -316,7 +316,7 @@ class SchedulingRepository:
             raise SchedulingRepositoryError(f"Failed to get execution: {e}")
 
     def get_job_executions(
-        self, job_id: str, limit: int = 100, status: Optional[ExecutionStatus] = None
+        self, job_id: str, limit: int = 100, status: Optional[JobExecutionStatus] = None
     ) -> List[JobExecution]:
         """Get executions for a job"""
         try:
@@ -345,7 +345,7 @@ class SchedulingRepository:
         try:
             return (
                 self.db.query(JobExecution)
-                .filter(JobExecution.status == ExecutionStatus.RUNNING)
+                .filter(JobExecution.status == JobExecutionStatus.RUNNING)
                 .order_by(JobExecution.started_at)
                 .all()
             )
@@ -473,7 +473,7 @@ class SchedulingRepository:
                     self.db.query(JobExecution)
                     .filter(
                         JobExecution.job_id == dep.depends_on_job_id,
-                        JobExecution.status == ExecutionStatus.SUCCESS,
+                        JobExecution.status == JobExecutionStatus.SUCCESS,
                     )
                     .order_by(desc(JobExecution.finished_at))
                     .first()
@@ -490,7 +490,7 @@ class SchedulingRepository:
                         .filter(
                             JobExecution.job_id == dep.depends_on_job_id,
                             JobExecution.status.in_(
-                                [ExecutionStatus.SUCCESS, ExecutionStatus.FAILURE]
+                                [JobExecutionStatus.SUCCESS, JobExecutionStatus.FAILURE]
                             ),
                         )
                         .order_by(desc(JobExecution.finished_at))
@@ -504,7 +504,7 @@ class SchedulingRepository:
                         self.db.query(JobExecution)
                         .filter(
                             JobExecution.job_id == dep.depends_on_job_id,
-                            JobExecution.status == ExecutionStatus.FAILURE,
+                            JobExecution.status == JobExecutionStatus.FAILURE,
                         )
                         .order_by(desc(JobExecution.finished_at))
                         .first()
@@ -686,19 +686,19 @@ class SchedulingRepository:
             total_executions = query.count()
 
             success_count = query.filter(
-                JobExecution.status == ExecutionStatus.SUCCESS
+                JobExecution.status == JobExecutionStatus.SUCCESS
             ).count()
             failure_count = query.filter(
-                JobExecution.status == ExecutionStatus.FAILURE
+                JobExecution.status == JobExecutionStatus.FAILURE
             ).count()
             running_count = query.filter(
-                JobExecution.status == ExecutionStatus.RUNNING
+                JobExecution.status == JobExecutionStatus.RUNNING
             ).count()
 
             # Average runtime for completed executions
             completed_query = query.filter(
                 JobExecution.status.in_(
-                    [ExecutionStatus.SUCCESS, ExecutionStatus.FAILURE]
+                    [JobExecutionStatus.SUCCESS, JobExecutionStatus.FAILURE]
                 ),
                 JobExecution.finished_at.isnot(None),
             )
@@ -773,14 +773,14 @@ class SchedulingRepository:
                 # Count active jobs
                 health_status["active_jobs"] = (
                     self.db.query(ScheduledJob)
-                    .filter(ScheduledJob.status == JobStatus.ACTIVE)
+                    .filter(ScheduledJob.status == ScheduledJobStatus.ACTIVE)
                     .count()
                 )
 
                 # Count running executions
                 health_status["running_executions"] = (
                     self.db.query(JobExecution)
-                    .filter(JobExecution.status == ExecutionStatus.RUNNING)
+                    .filter(JobExecution.status == JobExecutionStatus.RUNNING)
                     .count()
                 )
 
@@ -797,7 +797,7 @@ class SchedulingRepository:
                 health_status["recent_failures"] = (
                     self.db.query(JobExecution)
                     .filter(
-                        JobExecution.status == ExecutionStatus.FAILURE,
+                        JobExecution.status == JobExecutionStatus.FAILURE,
                         JobExecution.started_at >= last_hour,
                     )
                     .count()
@@ -827,7 +827,7 @@ class SchedulingRepository:
                 stuck_executions = (
                     self.db.query(JobExecution)
                     .filter(
-                        JobExecution.status == ExecutionStatus.RUNNING,
+                        JobExecution.status == JobExecutionStatus.RUNNING,
                         JobExecution.started_at < stuck_threshold,
                     )
                     .count()

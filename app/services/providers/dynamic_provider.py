@@ -58,7 +58,7 @@ class PromptBuilder:
     Builds a deterministic, token-efficient prompt for the LLM.
     """
 
-    def build(self, ctx: QuestionContext, seeds: List[str]) -> str:
+    def build(self, ctx: QuestionContext, seeds: List[str], language: str) -> str:
         """
         Constructs the LLM prompt.
 
@@ -70,18 +70,27 @@ class PromptBuilder:
             A formatted prompt string.
         """
         prompt = f"""
-        You are an expert in SEO and competitive analysis for the
-        {ctx.industry} industry. Your task is to generate a list of 25
-        insightful questions that a potential customer might ask when
-        evaluating {ctx.product_type} solutions.
+        Act as a senior SEO and buyer-intent analyst for the {ctx.industry} industry.
+        Generate a list of 25 customer questions in {language} (do not include any other language).
+        Output must be one question per line, no numbering or bullets.
 
-        Client Brand: {ctx.client_brand}
-        Competitors: {', '.join(ctx.competitors)}
-        Seed Topics: {', '.join(seeds)}
+        Context:
+        - Client Brand: {ctx.client_brand}
+        - Competitors: {', '.join(ctx.competitors)}
+        - Product Type: {ctx.product_type}
+        - Seed Topics: {', '.join(seeds)}
 
-        Based on this context, generate a diverse list of questions
-        covering comparisons, features, pricing, and use cases. Each
-        question must be a single line. Do not number the questions.
+        Requirements (enforce approximate distribution):
+        - ≥30% pairwise comparisons (e.g., X vs Y) mentioning brand names
+        - ≥20% pricing/tier/cost questions that mention a brand
+        - ≥15% integrations questions with specific ecosystems (e.g., Salesforce, Slack)
+        - ≥10% security/compliance (e.g., SOC 2, ISO 27001, GDPR)
+        - ≥10% implementation/migration/onboarding
+        - Remaining: features, reviews, geography
+        - At least 50% of questions must include at least one brand from Client/Competitors.
+        - Each question should be ≤ 24 words.
+
+        Produce ONLY the questions in {language}, one per line.
         """
         logger.debug("Built LLM prompt", length=len(prompt))
         return prompt
@@ -169,7 +178,9 @@ class PostProcessor:
     Cleans and formats the raw output from the LLM.
     """
 
-    def process(self, raw_text: str, max_questions: int) -> List[Question]:
+    def process(
+        self, raw_text: str, max_questions: int, language: str = "en"
+    ) -> List[Question]:
         """
         Processes the raw LLM output.
 
@@ -206,21 +217,102 @@ class PostProcessor:
             # Filter out long questions and duplicates
             if (
                 normalized_question
-                and len(normalized_question.split()) <= 15
+                and len(normalized_question.split()) <= 24
                 and normalized_question not in questions
             ):
                 questions.add(normalized_question)
                 # Store mapping from normalized to cleaned original text
                 original_casing_map[normalized_question] = cleaned_line
 
-        final_questions = [
-            Question(
-                question_text=original_casing_map[q],
-                category="dynamic",
-                provider="dynamic_provider",
+        # Lightweight heuristic categorization (EN/DE)
+        def classify(q: str) -> str:
+            ql = q.lower()
+            if language == "de":
+                if any(
+                    k in ql
+                    for k in [
+                        "soc 2",
+                        "iso 27001",
+                        "gdpr",
+                        "ds-gvo",
+                        "compliance",
+                        "sicherheit",
+                    ]
+                ):
+                    return "security_compliance"
+                if any(k in ql for k in ["tco", "roi", "gesamtkosten"]):
+                    return "roi_tco"
+                if any(k in ql for k in ["preis", "kosten", "kostet", "tarif"]):
+                    return "pricing"
+                if any(k in ql for k in ["integriert", "integration", "anbindung"]):
+                    return "integrations"
+                if any(k in ql for k in ["implementierung", "einführung", "migration"]):
+                    return "implementation_migration"
+                if any(k in ql for k in ["sla", "verfügbarkeit", "uptime", "support"]):
+                    return "support_reliability"
+                if any(k in ql for k in ["bewertung", "rezension", "erfahrungen"]):
+                    return "reviews"
+                if any(k in ql for k in ["funktion", "features"]):
+                    return "features"
+                if any(
+                    k in ql
+                    for k in ["eu", "europa", "deutschland", "region", "datenresidenz"]
+                ):
+                    return "geography"
+                if any(
+                    k in ql
+                    for k in [" vs ", "vs.", "vergleich", "gegenüber", "vergleiche"]
+                ):
+                    return "comparison"
+            else:
+                if any(k in ql for k in ["soc 2", "iso 27001", "gdpr", "hipaa", "pci"]):
+                    return "security_compliance"
+                if any(k in ql for k in ["tco", "roi", "total cost"]):
+                    return "roi_tco"
+                if any(k in ql for k in ["price", "pricing", "cost", "tier"]):
+                    return "pricing"
+                if any(
+                    k in ql
+                    for k in ["integrate", "integration", "connect", "works with"]
+                ):
+                    return "integrations"
+                if any(
+                    k in ql for k in ["implement", "onboard", "migration", "migrate"]
+                ):
+                    return "implementation_migration"
+                if any(k in ql for k in ["sla", "uptime", "support", "reliability"]):
+                    return "support_reliability"
+                if any(k in ql for k in ["review", "rating", "feedback"]):
+                    return "reviews"
+                if any(k in ql for k in ["feature", "capability"]):
+                    return "features"
+                if any(
+                    k in ql
+                    for k in [
+                        "region",
+                        "country",
+                        "europe",
+                        "eu",
+                        "germany",
+                        "data residency",
+                    ]
+                ):
+                    return "geography"
+                if " vs " in ql or "versus" in ql or "compare" in ql:
+                    return "comparison"
+            return "features"
+
+        final_questions = []
+        for q in sorted(list(questions)):
+            subcat = classify(original_casing_map[q])
+            final_questions.append(
+                Question(
+                    question_text=original_casing_map[q],
+                    category="dynamic",  # preserve compatibility
+                    provider="dynamic_provider",
+                    metadata={"sub_category": subcat, "language": language},
+                )
             )
-            for q in sorted(list(questions))  # Sort for deterministic output
-        ]
 
         logger.info(
             "Post-processed LLM output",
@@ -283,7 +375,17 @@ class DynamicProvider(QuestionProvider):
         )
 
         seeds = await self._trends_adapter.fetch_seeds(ctx.industry, ctx.product_type)
-        prompt = self._prompt_builder.build(ctx, seeds)
+        # Augment seeds with brand/competitor names and common integrations/compliance
+        from app.services.providers.industry_knowledge import IndustryKnowledge
+
+        brand_seeds = [ctx.client_brand] + ctx.competitors
+        integ_seeds = [
+            f"integrates with {x}"
+            for x in IndustryKnowledge.integrations(ctx.product_type)[:5]
+        ]
+        comp_seeds = IndustryKnowledge.compliance(ctx.industry)[:3]
+        seeds = list(dict.fromkeys(seeds + brand_seeds + integ_seeds + comp_seeds))
+        prompt = self._prompt_builder.build(ctx, seeds, ctx.language)
 
         try:
             llm_response = await self._llm_client.generate_questions(
@@ -305,7 +407,9 @@ class DynamicProvider(QuestionProvider):
                 metadata={"source": self.name, "error": "Empty LLM response"},
             )
 
-        questions = self._post_processor.process(raw_response, settings.DYNAMIC_Q_MAX)
+        questions = self._post_processor.process(
+            raw_response, settings.DYNAMIC_Q_MAX, ctx.language
+        )
 
         # Calculate cost and update questions
         cost = self._llm_client._calculate_cost(usage.model_dump())

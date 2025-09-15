@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   web:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.prod
     ports:
@@ -38,10 +38,10 @@ services:
       retries: 3
 
   worker:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.prod
-    command: celery -A celery_worker worker --loglevel=info --concurrency=4
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4
     environment:
       - APP_ENV=production
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
@@ -73,10 +73,10 @@ services:
       retries: 3
 
   beat:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.prod
-    command: celery -A celery_worker beat --loglevel=info
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
     environment:
       - APP_ENV=production
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
@@ -150,6 +150,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./app/monitoring/dashboards/prometheus_rules/aeo_alerts.yml:/etc/prometheus/aeo_alerts.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -193,7 +194,7 @@ services:
 
   # Celery monitoring
   flower:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.prod
     command: celery -A celery_worker flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}

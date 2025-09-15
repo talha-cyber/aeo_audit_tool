@@ -45,3 +45,13 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
 )
+
+# Beat schedule: periodic DLQ processing (every 10 minutes)
+
+celery_app.conf.beat_schedule = {
+    "process-audit-dlq": {
+        "task": "app.tasks.dlq_tasks.process_audit_dlq",
+        "schedule": 600.0,  # every 10 minutes
+        "args": (100,),
+    }
+}

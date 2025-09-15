@@ -94,6 +94,7 @@ class QuestionEngine:
         industry: str,
         product_type: str,
         audit_run_id: uuid.UUID,
+        language: str = "en",
         max_questions: int = 100,
     ) -> List[Question]:
         """
@@ -117,6 +118,7 @@ class QuestionEngine:
             industry=industry,
             product_type=product_type,
             audit_run_id=audit_run_id,
+            language=language,
         )
 
         enabled_providers = [p for p in self.providers if p.can_handle(ctx)]
@@ -166,24 +168,35 @@ class QuestionEngine:
             max_questions=max_questions,
         )
 
+        # Expanded weights; use sub_category if available
         priority_weights = {
+            # Decision-stage
             "comparison": 10,
-            "recommendation": 9,
-            "alternatives": 8,
+            "pricing": 9,
+            "integrations": 9,
+            "security_compliance": 9,
+            "implementation_migration": 8,
+            "roi_tco": 8,
+            "support_reliability": 8,
+            # Discovery/consideration
+            "alternatives": 7,
             "reviews": 7,
             "industry_specific": 7,
             "features": 6,
-            "pricing": 5,
-            "dynamic": 8,  # Give dynamic questions a high priority
-            "template": 5,  # Lower priority for generic templates
+            "geography": 6,
+            # Backward-compatibility buckets
+            "dynamic": 8,
+            "template": 5,
+            "recommendation": 9,
         }
 
         for question in questions:
             if question.priority_score == 0.0:
-                category = question.category
-
-                base_score = priority_weights.get(category, 5)
-
+                # Prefer fine-grained category from metadata when present
+                effective_category = (question.metadata or {}).get(
+                    "sub_category"
+                ) or question.category
+                base_score = priority_weights.get(effective_category, 5)
                 question.priority_score = base_score
 
         sorted_questions = sorted(

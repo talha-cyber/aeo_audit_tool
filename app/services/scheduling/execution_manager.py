@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
-from app.models.scheduling import ExecutionStatus, ScheduledJob
+from app.models.scheduling import JobExecutionStatus, ScheduledJob
 from app.utils.logger import get_logger
 
 from .repository import SchedulingRepository
@@ -135,7 +135,7 @@ class ExecutionManager:
             execution_data = {
                 "execution_id": execution_id,
                 "job_id": job.job_id,
-                "status": ExecutionStatus.RUNNING,
+                "status": JobExecutionStatus.RUNNING,
                 "scheduled_time": scheduled_time,
                 "started_at": now,
                 "metadata": metadata,
@@ -173,7 +173,7 @@ class ExecutionManager:
     async def complete_execution(
         self,
         execution_id: str,
-        status: ExecutionStatus,
+        status: JobExecutionStatus,
         result: Optional[Dict[str, Any]] = None,
         error_message: Optional[str] = None,
         error_details: Optional[Dict[str, Any]] = None,
@@ -213,16 +213,16 @@ class ExecutionManager:
             del self._active_executions[execution_id]
 
             # Notify status-specific callbacks
-            if status == ExecutionStatus.SUCCESS:
+            if status == JobExecutionStatus.SUCCESS:
                 await self._notify_callbacks("on_success", context, result=result)
-            elif status == ExecutionStatus.FAILURE:
+            elif status == JobExecutionStatus.FAILURE:
                 await self._notify_callbacks(
                     "on_failure",
                     context,
                     error_message=error_message,
                     error_details=error_details,
                 )
-            elif status == ExecutionStatus.TIMEOUT:
+            elif status == JobExecutionStatus.TIMEOUT:
                 await self._notify_callbacks("on_timeout", context)
 
             # Always notify completion
@@ -236,7 +236,7 @@ class ExecutionManager:
                 job_id=context.job_id,
                 status=status.value,
                 runtime_seconds=runtime_seconds,
-                success=status == ExecutionStatus.SUCCESS,
+                success=status == JobExecutionStatus.SUCCESS,
             )
 
         except Exception as e:
@@ -314,12 +314,14 @@ class ExecutionManager:
             yield context
 
             # If we get here, execution completed successfully
-            await self.complete_execution(context.execution_id, ExecutionStatus.SUCCESS)
+            await self.complete_execution(
+                context.execution_id, JobExecutionStatus.SUCCESS
+            )
 
         except asyncio.TimeoutError:
             await self.complete_execution(
                 context.execution_id,
-                ExecutionStatus.TIMEOUT,
+                JobExecutionStatus.TIMEOUT,
                 error_message=f"Execution timed out after {context.timeout_seconds} seconds",
             )
             raise ExecutionTimeoutError("Job execution timed out")
@@ -327,7 +329,7 @@ class ExecutionManager:
         except Exception as e:
             await self.complete_execution(
                 context.execution_id,
-                ExecutionStatus.FAILURE,
+                JobExecutionStatus.FAILURE,
                 error_message=str(e),
                 error_details={"exception_type": type(e).__name__},
             )
@@ -362,7 +364,7 @@ class ExecutionManager:
 
                 await self.complete_execution(
                     execution_id,
-                    ExecutionStatus.TIMEOUT,
+                    JobExecutionStatus.TIMEOUT,
                     error_message=f"Execution timed out after {timeout_seconds} seconds",
                 )
 
@@ -381,7 +383,7 @@ class ExecutionManager:
     async def get_execution_history(
         self,
         job_id: Optional[str] = None,
-        status: Optional[ExecutionStatus] = None,
+        status: Optional[JobExecutionStatus] = None,
         limit: int = 100,
         include_running: bool = True,
     ) -> List[Dict[str, Any]]:
@@ -538,7 +540,7 @@ class ExecutionManager:
 
         try:
             await self.complete_execution(
-                execution_id, ExecutionStatus.CANCELLED, error_message=reason
+                execution_id, JobExecutionStatus.CANCELLED, error_message=reason
             )
 
             logger.info(

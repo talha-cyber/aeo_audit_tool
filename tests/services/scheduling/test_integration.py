@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from app.models.scheduling import JobStatus, TriggerType
+from app.models.scheduling import ScheduledJobStatus, TriggerType
 from app.services.scheduling import (
     ExecutionManager,
     JobDefinition,
@@ -90,7 +90,7 @@ class TestEndToEndJobScheduling:
         mock_job.trigger_type = TriggerType.CRON
         mock_job.trigger_config = {"trigger_type": "cron", "expression": "0 9 * * *"}
         mock_job.job_data = {"client_id": "client-123"}
-        mock_job.status = JobStatus.ACTIVE
+        mock_job.status = ScheduledJobStatus.ACTIVE
         mock_job.last_run_time = None
         mock_job.timeout_seconds = 3600
         mock_job.max_retries = 3
@@ -157,7 +157,7 @@ class TestEndToEndJobScheduling:
         mock_job.job_type = job_def.job_type
         mock_job.trigger_config = job_def.trigger_config
         mock_job.job_data = job_def.job_data
-        mock_job.status = JobStatus.ACTIVE
+        mock_job.status = ScheduledJobStatus.ACTIVE
         mock_job.timeout_seconds = None
 
         # Mock trigger behavior
@@ -669,7 +669,7 @@ async def test_complete_audit_workflow(full_scheduler_system):
     mock_job = Mock()
     mock_job.job_id = "audit-job-789"
     mock_job.name = audit_job_def.name
-    mock_job.status = JobStatus.ACTIVE
+    mock_job.status = ScheduledJobStatus.ACTIVE
 
     # Mock trigger creation
     with patch.object(

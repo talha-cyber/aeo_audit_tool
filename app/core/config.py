@@ -63,6 +63,23 @@ class Settings(BaseSettings):
 
     BULKHEAD_DEFAULT_MAX_CONCURRENCY: int = 10
 
+    # Security settings
+    ENABLE_SECURITY_HEADERS: bool = True
+    CSP_POLICY: str = "default-src 'self'"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRES_MINUTES: int = 60
+    JWT_ISSUER: Optional[str] = None
+    SESSION_TTL_SECONDS: int = 3600
+    FIELD_ENCRYPTION_KEY: Optional[str] = None
+    API_KEY_PEPPER: Optional[str] = None
+
+    # Monitoring/Tracing
+    TRACING_ENABLED: bool = False
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4318/v1/traces"
+    TRACING_SAMPLE_RATIO: float = 0.1
+    SERVICE_NAME: Optional[str] = None
+    ALERT_WEBHOOK_URL: Optional[str] = None
+
     @property
     def database_url(self) -> str:
         """Construct the database URL from individual components."""

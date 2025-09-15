@@ -12,11 +12,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from app.models.scheduling import (
-    ExecutionStatus,
     JobDependency,
     JobExecution,
-    JobStatus,
+    JobExecutionStatus,
     ScheduledJob,
+    ScheduledJobStatus,
     SchedulerMetrics,
     TriggerType,
 )
@@ -72,7 +72,7 @@ class TestSchedulingRepository:
             "trigger_type": TriggerType.CRON,
             "trigger_config": {"expression": "0 9 * * *"},
             "job_data": {"client_id": "123"},
-            "status": JobStatus.ACTIVE,
+            "status": ScheduledJobStatus.ACTIVE,
         }
 
         # Mock job object
@@ -134,7 +134,7 @@ class TestSchedulingRepository:
     def test_update_job_success(self, repository, mock_db_session):
         """Test successful job update"""
         job_id = "test-job-123"
-        updates = {"status": JobStatus.CANCELLED, "priority": 1}
+        updates = {"status": ScheduledJobStatus.CANCELLED, "priority": 1}
 
         mock_job = Mock(spec=ScheduledJob)
         mock_job.job_id = job_id
@@ -146,14 +146,14 @@ class TestSchedulingRepository:
         result = repository.update_job(job_id, updates)
 
         assert result == mock_job
-        assert mock_job.status == JobStatus.CANCELLED
+        assert mock_job.status == ScheduledJobStatus.CANCELLED
         assert mock_job.priority == 1
         assert hasattr(mock_job, "updated_at")
 
     def test_update_job_not_found(self, repository, mock_db_session):
         """Test updating non-existent job"""
         job_id = "nonexistent-job"
-        updates = {"status": JobStatus.CANCELLED}
+        updates = {"status": ScheduledJobStatus.CANCELLED}
 
         mock_query = Mock()
         mock_query.filter.return_value.first.return_value = None
@@ -218,7 +218,7 @@ class TestSchedulingRepository:
         execution_data = {
             "execution_id": str(uuid.uuid4()),
             "job_id": "test-job-123",
-            "status": ExecutionStatus.RUNNING,
+            "status": JobExecutionStatus.RUNNING,
             "started_at": datetime.now(timezone.utc),
         }
 
@@ -239,7 +239,7 @@ class TestSchedulingRepository:
         """Test successful execution update"""
         execution_id = "exec-123"
         updates = {
-            "status": ExecutionStatus.SUCCESS,
+            "status": JobExecutionStatus.SUCCESS,
             "finished_at": datetime.now(timezone.utc),
         }
 
@@ -253,7 +253,7 @@ class TestSchedulingRepository:
         result = repository.update_execution(execution_id, updates)
 
         assert result == mock_execution
-        assert mock_execution.status == ExecutionStatus.SUCCESS
+        assert mock_execution.status == JobExecutionStatus.SUCCESS
 
     def test_acquire_scheduler_lock_success(self, repository, mock_db_session):
         """Test successful lock acquisition"""

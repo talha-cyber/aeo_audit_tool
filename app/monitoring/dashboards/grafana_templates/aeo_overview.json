@@ -1,0 +1,36 @@
+{
+  "title": "AEO Overview",
+  "uid": "aeo-overview",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Requests per Second",
+      "type": "graph",
+      "targets": [
+        { "expr": "sum(rate(http_requests_total[1m]))" }
+      ]
+    },
+    {
+      "title": "Error Rate",
+      "type": "graph",
+      "targets": [
+        { "expr": "sum(rate(http_requests_total{code=~\\"5..\\"}[5m])) / sum(rate(http_requests_total[5m]))" }
+      ]
+    },
+    {
+      "title": "Circuit State (avg)",
+      "type": "stat",
+      "targets": [
+        { "expr": "avg(circuit_state)" }
+      ]
+    },
+    {
+      "title": "DLQ Depth",
+      "type": "stat",
+      "targets": [
+        { "expr": "tech_redis_queue_depth{queue=\\"dlq:audit:tasks\\"}" }
+      ]
+    }
+  ]
+}

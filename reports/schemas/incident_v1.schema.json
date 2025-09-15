@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeo.example.com/schemas/incident_v1.schema.json",
+  "title": "AEO Incident Artifact v1",
+  "type": "object",
+  "required": ["incident_id", "timestamp", "environment", "kind", "exception", "stack"],
+  "properties": {
+    "incident_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "environment": { "type": "string", "enum": ["local", "ci", "staging", "production"] },
+    "kind": { "type": "string", "enum": ["api", "celery"] },
+    "request_id": { "type": ["string", "null"] },
+    "audit_run_id": { "type": ["string", "null"] },
+    "process": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "pid": { "type": "integer" },
+        "host": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "http": {
+      "type": "object",
+      "properties": {
+        "method": { "type": "string" },
+        "url": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] },
+        "headers": { "type": ["object", "null"] },
+        "body": { "type": ["string", "object", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "args": { "type": ["array", "null"] },
+        "kwargs": { "type": ["object", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "exception": { "type": "string" },
+    "stack": { "type": "string" },
+    "last_logs": { "type": "array", "items": { "type": "string" } },
+    "env": {
+      "type": "object",
+      "description": "Whitelisted env snapshot with secrets redacted"
+    },
+    "extras": { "type": "object" }
+  },
+  "additionalProperties": false
+}

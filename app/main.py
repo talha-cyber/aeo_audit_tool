@@ -5,8 +5,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 from app.api.v1 import audits
+from app.api.v1 import monitoring as monitoring_routes
+from app.api.v1 import security as security_routes
 from app.api.v1.providers import health as provider_health
 from app.core.config import settings
+from app.monitoring.tracing.correlation import CorrelationIdMiddleware
+from app.monitoring.tracing.opentelemetry_setup import setup_tracing
+from app.security.audit.access_logger import AccessLogMiddleware
+from app.security.validation.security_headers import SecurityHeadersMiddleware
 from app.utils.logger import configure_logging, get_logger
 
 # Configure logging before anything else
@@ -46,8 +52,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security middleware (headers + access logs)
+if settings.ENABLE_SECURITY_HEADERS:
+    app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AccessLogMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
+
 app.include_router(audits.router, prefix="/api/v1")
 app.include_router(provider_health.router, prefix="/api/v1/providers")
+app.include_router(security_routes.router, prefix="/api/v1")
+app.include_router(monitoring_routes.router, prefix="/api/v1")
 
 # Initialize Prometheus metrics
 instrumentator = Instrumentator(
@@ -66,6 +80,8 @@ async def startup_event():
         environment=settings.APP_ENV,
         sentry_enabled=bool(settings.SENTRY_DSN),
     )
+    # Initialize OpenTelemetry tracing if enabled
+    setup_tracing(app)
 
 
 @app.get("/health")

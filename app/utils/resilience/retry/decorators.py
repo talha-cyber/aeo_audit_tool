@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
@@ -28,7 +28,7 @@ ExceptionTypes = Union[Type[BaseException], Sequence[Type[BaseException]]]
 class RetryConfig:
     max_attempts: int = 3
     exceptions: Tuple[Type[BaseException], ...] = (Exception,)
-    backoff_strategy: Any = ExponentialBackoffStrategy()  # type: ignore[assignment]
+    backoff_strategy: Any = field(default_factory=ExponentialBackoffStrategy)
     use_jitter: bool = True
 
 
