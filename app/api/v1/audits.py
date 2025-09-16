@@ -3,6 +3,7 @@ from typing import Generator, Optional, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -91,7 +92,7 @@ async def get_audit_status(run_id: str, db: Session = Depends(get_db)) -> AuditR
 @router.post("/runs/{run_id}/generate-report", response_model=ReportGenerationResponse)
 async def trigger_generate_report(
     run_id: str,
-    report_type: str = "comprehensive",
+    report_type: str = "v2_comprehensive",
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
 ):
@@ -104,10 +105,11 @@ async def trigger_generate_report(
         raise HTTPException(status_code=404, detail="Audit run not found")
 
     if audit_run.status != "completed":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Audit run status is '{audit_run.status}'. Must be 'completed' to generate a report.",
+        detail_message = (
+            f"Audit run status is '{audit_run.status}'. "
+            "Must be 'completed' to generate a report."
         )
+        raise HTTPException(status_code=400, detail=detail_message)
 
     # Synchronous generation to ensure immediate availability
     generator = ReportGenerator(db_session=db)
@@ -130,7 +132,9 @@ async def get_report_status(run_id: str, db: Session = Depends(get_db)):
     """
     Get the status and file path of a generated report.
     """
-    report = db.query(Report).filter(Report.audit_run_id == run_id).first()
+    report_query = db.query(Report).filter(Report.audit_run_id == run_id)
+    ordering = desc(Report.generated_at)
+    report = report_query.order_by(ordering).first()
     if not report:
         raise HTTPException(
             status_code=404,

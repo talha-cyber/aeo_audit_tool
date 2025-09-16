@@ -6,15 +6,17 @@ services:
     env_file:
       - .env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=aeo_audit
-      - POSTGRES_SERVER=db
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-me}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-aeo_audit}
+      - POSTGRES_SERVER=${POSTGRES_SERVER:-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000}
       - RUNNING_IN_DOCKER=true
     depends_on:
       - db
@@ -29,15 +31,17 @@ services:
     env_file:
       - .env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=aeo_audit
-      - POSTGRES_SERVER=db
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-me}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-aeo_audit}
+      - POSTGRES_SERVER=${POSTGRES_SERVER:-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000}
       - RUNNING_IN_DOCKER=true
     depends_on:
       - db
@@ -96,11 +100,12 @@ services:
 
   celery-exporter:
     image: danihodovic/celery-exporter:latest
+    command:
+      - "--broker-url=redis://redis:6379/0"
+      - "--host=0.0.0.0"
+      - "--port=9808"
     ports:
       - "9808:9808"
-    environment:
-      - CELERY_EXPORTER_BROKER_URL=redis://redis:6379/0
-      - CELERY_EXPORTER_LISTEN_ADDRESS=0.0.0.0:9808
     depends_on:
       - redis
 
