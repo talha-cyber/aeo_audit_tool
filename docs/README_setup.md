@@ -4,7 +4,15 @@
 
 ### 1. Environment Setup
 
-Create a `.env` file in the project root with the following configuration:
+Copy the provided template and customise it for your environment:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to set secure values (use a strong random string for `SECRET_KEY` outside local dev) and adjust the allowed CORS origins for the portals that will call the API.
+
+Template fields:
 
 ```bash
 # Database Configuration
@@ -21,7 +29,10 @@ GOOGLE_AI_API_KEY=your_google_ai_key_here
 
 # Application Configuration
 SECRET_KEY=your_secret_key_here
-DEBUG=True
+APP_ENV=development
+CORS_ALLOW_ORIGINS=http://localhost:3000
+ENABLE_DEBUG_ENDPOINTS=false
+QUESTION_ENGINE_V2=false
 LOG_LEVEL=INFO
 
 # Rate Limiting (requests per minute)
@@ -30,6 +41,8 @@ ANTHROPIC_RATE_LIMIT=100
 PERPLEXITY_RATE_LIMIT=20
 GOOGLE_AI_RATE_LIMIT=60
 ```
+
+> **Note**: leave the AI platform keys as `dummy_key` while developing offline. Replace them with real keys only when you are ready to exercise the live providers.
 
 ### 2. Development Setup
 

@@ -1,0 +1,17 @@
+# B2C Decision contexts (placeholder values)
+
+awareness:
+  label: "Awareness"
+  priority: 0.5
+
+evaluation:
+  label: "Evaluation"
+  priority: 0.8
+
+purchase:
+  label: "Purchase"
+  priority: 1.0
+
+loyalty:
+  label: "Loyalty"
+  priority: 0.6

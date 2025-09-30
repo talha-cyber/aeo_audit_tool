@@ -1,0 +1,16 @@
+# B2B persona presets combining role, driver, contexts
+
+cost_cutter_cfo:
+  role: "cfo"
+  driver: "roi_tco"
+  contexts: ["validation", "negotiation"]
+
+risk_wary_ciso:
+  role: "ciso"
+  driver: "trust_compliance"
+  contexts: ["validation", "rollout"]
+
+scale_seeker_vps:
+  role: "vp_sales"
+  driver: "scalability"
+  contexts: ["evaluation", "expansion"]

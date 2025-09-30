@@ -74,7 +74,7 @@ class TriggerFactory:
             # Convert to TriggerType enum if needed
             if isinstance(trigger_type_value, str):
                 try:
-                    trigger_type = TriggerType(trigger_type_value.upper())
+                    trigger_type = TriggerType(trigger_type_value.lower())
                 except ValueError:
                     raise TriggerValidationError(
                         f"Invalid trigger type: {trigger_type_value}"
@@ -208,14 +208,14 @@ class TriggerFactory:
                 sample_config = self._get_sample_config(trigger_type)
                 sample_trigger = trigger_class(sample_config)
 
-                supported[trigger_type.value] = {
+                supported[trigger_type.name] = {
                     "type": "built-in",
                     "class": trigger_class.__name__,
                     "description": trigger_class.__doc__ or "No description available",
                     "sample_config": sample_config,
                 }
             except Exception as e:
-                supported[trigger_type.value] = {
+                supported[trigger_type.name] = {
                     "type": "built-in",
                     "class": trigger_class.__name__,
                     "description": "Configuration error",
@@ -224,7 +224,7 @@ class TriggerFactory:
 
         # Custom triggers
         for trigger_name, trigger_class in self._custom_triggers.items():
-            supported[trigger_name] = {
+            supported[trigger_name.upper()] = {
                 "type": "custom",
                 "class": trigger_class.__name__,
                 "description": trigger_class.__doc__

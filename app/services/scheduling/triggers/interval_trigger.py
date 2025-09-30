@@ -34,13 +34,11 @@ class IntervalTrigger(BaseTrigger):
         """Initialize interval trigger"""
         super().__init__(config)
 
-        # Parse interval configuration
-        self.seconds = self.get_config_value("seconds", default=0)
-        self.minutes = self.get_config_value("minutes", default=0)
-        self.hours = self.get_config_value("hours", default=0)
-        self.days = self.get_config_value("days", default=0)
+        self.seconds = self._get_unit_value("seconds")
+        self.minutes = self._get_unit_value("minutes")
+        self.hours = self._get_unit_value("hours")
+        self.days = self._get_unit_value("days")
 
-        # Calculate total interval
         self.total_seconds = self._calculate_total_seconds()
 
         # Start time configuration
@@ -48,12 +46,16 @@ class IntervalTrigger(BaseTrigger):
         self.end_date = self.validate_datetime_config("end_date", required=False)
 
         # Misfire handling
-        self.misfire_grace_time = self.get_config_value(
-            "misfire_grace_time", default=300
-        )  # 5 minutes
-        self.catch_up_missed_runs = self.get_config_value(
-            "catch_up_missed_runs", default=False
+        self.misfire_grace_time = int(
+            self.get_config_value("misfire_grace_time", default=self.misfire_grace_time)
         )
+        self.config["misfire_grace_time"] = self.misfire_grace_time
+        self.catch_up_missed_runs = bool(
+            self.get_config_value("catch_up_missed_runs", default=False)
+        )
+
+    def now(self) -> datetime:  # type: ignore[override]
+        return datetime.now(timezone.utc)
 
     def validate_config(self) -> None:
         """Validate interval trigger configuration"""
@@ -114,27 +116,30 @@ class IntervalTrigger(BaseTrigger):
 
     def _calculate_total_seconds(self) -> float:
         """Calculate total interval in seconds"""
-        total = 0.0
-        total += self.get_config_value("seconds", default=0)
-        total += self.get_config_value("minutes", default=0) * 60
-        total += self.get_config_value("hours", default=0) * 3600
-        total += self.get_config_value("days", default=0) * 86400
+        total = (
+            self._get_unit_value("seconds")
+            + self._get_unit_value("minutes") * 60
+            + self._get_unit_value("hours") * 3600
+            + self._get_unit_value("days") * 86400
+        )
         return total
 
-    async def get_next_run_time(
+    def _get_unit_value(self, key: str) -> float:
+        value = self.get_config_value(key, default=0)
+        if value is None:
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise TriggerValidationError(
+                f"'{key}' must be a number, got {value!r}"
+            ) from exc
+
+    def _calculate_next_run(
         self, previous_run_time: Optional[datetime]
     ) -> Optional[datetime]:
-        """
-        Calculate next run time based on interval.
-
-        Args:
-            previous_run_time: When job was last run
-
-        Returns:
-            Next run time in UTC timezone
-        """
         try:
-            now = datetime.now(timezone.utc)
+            now = self.now()
 
             # Check if we're past the end date
             if self.end_date and now >= self.end_date:
@@ -153,38 +158,24 @@ class IntervalTrigger(BaseTrigger):
                 else:
                     base_time = now
             else:
-                # Subsequent run - add interval to previous run
                 base_time = previous_run_time + timedelta(seconds=self.total_seconds)
 
-                # Handle missed runs if system was down
                 if self.catch_up_missed_runs and base_time < now:
-                    # Calculate how many intervals we've missed
-                    missed_time = (now - base_time).total_seconds()
-                    missed_intervals = int(missed_time / self.total_seconds)
-
-                    if missed_intervals > 0:
+                    late_seconds = (now - base_time).total_seconds()
+                    intervals_missed = int(late_seconds // self.total_seconds)
+                    if late_seconds % self.total_seconds:
+                        intervals_missed += 1
+                    if intervals_missed > 0:
                         logger.info(
-                            f"Interval trigger missed {missed_intervals} runs, catching up",
+                            "Interval trigger catching up missed runs",
+                            missed_intervals=intervals_missed,
+                            interval_seconds=self.total_seconds,
                             previous_run=previous_run_time.isoformat(),
                             current_time=now.isoformat(),
-                            interval_seconds=self.total_seconds,
                         )
-
-                        # Skip to the next scheduled run that's in the future
-                        base_time += timedelta(
-                            seconds=missed_intervals * self.total_seconds
+                        base_time = base_time + timedelta(
+                            seconds=intervals_missed * self.total_seconds
                         )
-
-                # Ensure we don't schedule in the past (with grace time)
-                grace_time = now - timedelta(seconds=self.misfire_grace_time)
-                if base_time < grace_time:
-                    logger.info(
-                        "Interval trigger adjusting time to avoid past scheduling",
-                        calculated_time=base_time.isoformat(),
-                        grace_time=grace_time.isoformat(),
-                        current_time=now.isoformat(),
-                    )
-                    base_time = now
 
             # Ensure we're not before start_date
             if self.start_date and base_time < self.start_date:
@@ -219,20 +210,34 @@ class IntervalTrigger(BaseTrigger):
             )
             raise TriggerCalculationError(f"Interval calculation failed: {e}") from e
 
+    async def get_next_run_time(
+        self, previous_run_time: Optional[datetime]
+    ) -> Optional[datetime]:
+        """Async wrapper around synchronous interval calculation."""
+        return self._calculate_next_run(previous_run_time)
+
     def get_trigger_info(self) -> Dict[str, Any]:
         """Get human-readable trigger information"""
         try:
             # Build human-readable interval description
             parts = []
 
+            def _describe(value: float, unit: str) -> str:
+                if value.is_integer():
+                    value_display = int(value)
+                else:
+                    value_display = value
+                suffix = "s" if value_display != 1 else ""
+                return f"{value_display} {unit}{suffix}"
+
             if self.days > 0:
-                parts.append(f"{self.days} day{'s' if self.days != 1 else ''}")
+                parts.append(_describe(self.days, "day"))
             if self.hours > 0:
-                parts.append(f"{self.hours} hour{'s' if self.hours != 1 else ''}")
+                parts.append(_describe(self.hours, "hour"))
             if self.minutes > 0:
-                parts.append(f"{self.minutes} minute{'s' if self.minutes != 1 else ''}")
+                parts.append(_describe(self.minutes, "minute"))
             if self.seconds > 0:
-                parts.append(f"{self.seconds} second{'s' if self.seconds != 1 else ''}")
+                parts.append(_describe(self.seconds, "second"))
 
             if len(parts) == 0:
                 description = f"Every {self.total_seconds} seconds"
@@ -260,8 +265,8 @@ class IntervalTrigger(BaseTrigger):
             current_time = None
 
             try:
-                for i in range(5):  # Get next 5 runs
-                    next_time = await self.get_next_run_time(current_time)
+                for _ in range(5):  # Get next 5 runs
+                    next_time = self._calculate_next_run(current_time)
                     if next_time is None:
                         break
                     next_runs.append(next_time.isoformat())
@@ -330,14 +335,15 @@ class IntervalTrigger(BaseTrigger):
 
     def get_interval_description(self) -> str:
         """Get a concise description of the interval"""
-        if self.total_seconds < 60:
-            return f"{self.total_seconds}s"
-        elif self.total_seconds < 3600:
-            minutes = self.total_seconds / 60
-            return f"{minutes}m" if minutes == int(minutes) else f"{minutes:.1f}m"
-        elif self.total_seconds < 86400:
-            hours = self.total_seconds / 3600
-            return f"{hours}h" if hours == int(hours) else f"{hours:.1f}h"
-        else:
-            days = self.total_seconds / 86400
-            return f"{days}d" if days == int(days) else f"{days:.1f}d"
+        total = self.total_seconds
+
+        def _format(value: float, suffix: str) -> str:
+            return f"{int(value)}{suffix}" if value.is_integer() else f"{value:.1f}{suffix}"
+
+        if total < 60:
+            return _format(total, "s")
+        if total < 3600:
+            return _format(total / 60, "m")
+        if total < 86400:
+            return _format(total / 3600, "h")
+        return _format(total / 86400, "d")

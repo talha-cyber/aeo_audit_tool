@@ -1,0 +1,4 @@
+# role:driver:context templates for B2C
+skeptic:deal_hunter:evaluation=What pricing questions does a {role} persona ask about {client_brand} when comparing to {competitor}?
+advocate:values_aligned:purchase=How does {client_brand} reinforce trust for loyal {role} customers during {context_stage}?
+researcher:convenience:awareness=What conveniences make {client_brand} stand out for {role}s learning about {product_type}?

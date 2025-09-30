@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 
 # --- Provider Metrics ---
 
@@ -76,4 +76,31 @@ LLM_COST_TOTAL = Counter(
     "llm_cost_total",
     "Total cost of LLM calls.",
     ["model"],
+)
+
+
+# --- Question Engine v2 Metrics ---
+
+QE_V2_QUESTIONS_GENERATED_TOTAL = Counter(
+    "qe_v2_questions_generated_total",
+    "Total v2 questions generated broken down by provider/persona context.",
+    ["provider", "role", "driver", "context_stage", "seed_type"],
+)
+
+QE_V2_SEED_MIX_RATIO = Gauge(
+    "qe_v2_seed_mix_ratio",
+    "Observed seed mix ratio per audit run.",
+    ["run_id", "seed_type"],
+)
+
+QE_V2_SATISFACTION_SCORE = Gauge(
+    "qe_v2_satisfaction_score",
+    "Latest satisfaction score per driver persona.",
+    ["driver"],
+)
+
+QE_V2_SATISFACTION_STATUS_TOTAL = Counter(
+    "qe_v2_satisfaction_status_total",
+    "Count of satisfaction status outcomes per driver.",
+    ["driver", "status"],
 )

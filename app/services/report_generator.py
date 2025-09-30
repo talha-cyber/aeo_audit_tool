@@ -31,6 +31,12 @@ from sqlalchemy.orm import Session
 from app.models import audit as audit_models
 from app.models import response as response_models
 from app.models.report import Report
+from app.services.report_utils import (
+    extract_question_context,
+    format_block_text,
+    format_inline_text,
+    group_records,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -198,10 +204,25 @@ class ReportGenerator:
             # Process responses for analysis
             platform_stats = {}
             brand_performance = {}
+            qa_entries = []
 
             for response in responses:
                 platform = response.platform
                 brand_mentions = response.brand_mentions or {}
+                question_context = extract_question_context(response)
+                qa_entries.append(
+                    {
+                        "question_id": question_context.get("question_id"),
+                        "question": question_context.get("question"),
+                        "answer": response.response_text,
+                        "provider": question_context.get("provider")
+                        or response.platform
+                        or "Unknown Provider",
+                        "category": question_context.get("category"),
+                        "question_type": question_context.get("question_type"),
+                        "platform": platform,
+                    }
+                )
 
                 # Initialize platform stats
                 if platform not in platform_stats:
@@ -255,8 +276,6 @@ class ReportGenerator:
                     )
 
             # Handle None timestamps by using current time as fallback
-            from datetime import datetime
-
             current_time = datetime.now()
             start_time = audit_run.started_at or current_time
             end_time = audit_run.completed_at or audit_run.started_at or current_time
@@ -270,6 +289,8 @@ class ReportGenerator:
                 "brand_performance": brand_performance,
                 "total_responses": len(responses),
                 "date_range": {"start": start_time, "end": end_time},
+                "qa_entries": qa_entries,
+                "appendix_group_by": "provider",
             }
 
         except Exception as e:
@@ -299,6 +320,11 @@ class ReportGenerator:
         # Recommendations
         story.extend(self._create_recommendations(data))
 
+        appendix = self._create_appendix(data)
+        if appendix:
+            story.append(PageBreak())
+            story.extend(appendix)
+
         return story
 
     def _build_summary_report(self, data: Dict[str, Any]) -> List:
@@ -316,6 +342,11 @@ class ReportGenerator:
         # Key Insights
         story.extend(self._create_key_insights(data))
 
+        appendix = self._create_appendix(data)
+        if appendix:
+            story.append(PageBreak())
+            story.extend(appendix)
+
         return story
 
     def _build_platform_report(self, data: Dict[str, Any]) -> List:
@@ -328,6 +359,11 @@ class ReportGenerator:
 
         # Platform Performance
         story.extend(self._create_platform_analysis(data))
+
+        appendix = self._create_appendix(data)
+        if appendix:
+            story.append(PageBreak())
+            story.extend(appendix)
 
         return story
 
@@ -584,6 +620,70 @@ class ReportGenerator:
         ]
 
         return recommendations
+
+    def _create_appendix(self, data: Dict[str, Any]) -> List:
+        """Create appendix section with grouped Q&A entries."""
+        qa_entries = data.get("qa_entries", [])
+        if not qa_entries:
+            return []
+
+        group_by = data.get("appendix_group_by", "provider")
+        grouped_entries = group_records(qa_entries, group_by)
+
+        story: List[Any] = []
+        story.append(Paragraph("Appendix: Question & Answer Index", self.title_style))
+
+        for group_label, entries in grouped_entries.items():
+            heading_label = format_inline_text(
+                f"{group_by.replace('_', ' ').title()}: {group_label}"
+            )
+            story.append(Paragraph(heading_label, self.heading_style))
+
+            for idx, entry in enumerate(entries, start=1):
+                question_text = entry.get("question") or "Question not available."
+                answer_text = entry.get("answer") or "Answer not available."
+
+                story.append(
+                    Paragraph(
+                        f"{idx}. <b>Question:</b> {format_block_text(question_text)}",
+                        self.styles["Normal"],
+                    )
+                )
+                story.append(
+                    Paragraph(
+                        f"<b>Answer:</b> {format_block_text(answer_text)}",
+                        self.styles["Normal"],
+                    )
+                )
+
+                metadata_parts = []
+                if entry.get("category"):
+                    metadata_parts.append(
+                        f"Category: {format_inline_text(entry['category'])}"
+                    )
+                if entry.get("question_type"):
+                    metadata_parts.append(
+                        f"Type: {format_inline_text(entry['question_type'])}"
+                    )
+                if entry.get("platform"):
+                    metadata_parts.append(
+                        f"Platform: {format_inline_text(entry['platform'])}"
+                    )
+
+                if metadata_parts:
+                    metadata_string = " | ".join(metadata_parts)
+                    story.append(
+                        Paragraph(
+                            f"<font size=9 color='#555555'>{metadata_string}</font>",
+                            self.styles["Normal"],
+                        )
+                    )
+
+                story.append(Spacer(1, 12))
+
+            story.append(Spacer(1, 24))
+
+        return story
 
     def _generate_v2_report(
         self, audit_run_id: str, report_type: str, filepath: str

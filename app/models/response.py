@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Column, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base
@@ -19,6 +19,9 @@ class Response(Base):
     brand_mentions = Column(JSON, nullable=True)  # Brand detection results
     response_metadata = Column(JSON, nullable=True)  # Timing, tokens, cost, etc.
     processing_time_ms = Column(Integer, nullable=True)  # Query execution time
+    emotional_satisfaction = Column(String, nullable=True)
+    satisfaction_score = Column(Float, nullable=True)
+    satisfaction_model = Column(String, nullable=True)
 
     # Relationships
     audit_run = relationship("AuditRun", back_populates="responses")

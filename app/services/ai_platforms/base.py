@@ -12,7 +12,12 @@ from abc import ABC, abstractmethod
 from collections import deque
 from typing import Any, Dict, Optional
 
-import aiohttp
+try:
+    import aiohttp  # type: ignore
+except ImportError:  # pragma: no cover - fallback handled at runtime
+    aiohttp = None  # type: ignore
+
+import httpx
 
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -134,7 +139,8 @@ class BasePlatform(ABC):
             self.rate_limiter = AIRateLimiter(rate_limit)
         self.platform_name = self.__class__.__name__.lower().replace("platform", "")
         self.config = config
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: Optional[Any] = None
+        self._uses_httpx = aiohttp is None
 
         # Resilience components
         self._cb = CircuitBreaker(
@@ -150,15 +156,25 @@ class BasePlatform(ABC):
 
     async def __aenter__(self):
         """Create HTTP session when entering async context."""
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=30), headers=self._get_default_headers()
-        )
+        headers = self._get_default_headers()
+        if aiohttp:
+            self.session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=30), headers=headers
+            )
+            self._uses_httpx = False
+        else:
+            # Fallback when aiohttp is unavailable (e.g., minimal test environments)
+            self.session = httpx.AsyncClient(timeout=30.0, headers=headers)
+            self._uses_httpx = True
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Clean up HTTP session when exiting async context."""
         if self.session:
-            await self.session.close()
+            if self._uses_httpx:
+                await self.session.aclose()
+            else:
+                await self.session.close()
 
     @abstractmethod
     async def query(self, question: str, **kwargs) -> Dict[str, Any]:
@@ -296,29 +312,42 @@ class BasePlatform(ABC):
         payload = self._prepare_request_payload(question, **kwargs)
 
         try:
-            async with self.session.post(
-                self._get_endpoint_url(), json=payload
-            ) as response:
-                response_data = await response.json()
+            if self._uses_httpx:
+                response = await self.session.post(self._get_endpoint_url(), json=payload)
+                response_data = response.json()
+                status = response.status_code
+                headers = response.headers
+            else:
+                async with self.session.post(
+                    self._get_endpoint_url(), json=payload
+                ) as response:
+                    response_data = await response.json()
+                    status = response.status
+                    headers = response.headers
 
-                if response.status == 429:
-                    retry_after = int(response.headers.get("retry-after", 60))
-                    raise RateLimitError("Rate limited", retry_after=retry_after)
-                elif response.status == 401:
-                    raise AuthenticationError("Invalid API key")
-                elif response.status == 403:
-                    raise QuotaExceededError("Quota exceeded")
-                elif response.status >= 500:
-                    raise TransientError(f"Server error: {response.status}")
-                elif response.status != 200:
-                    raise PlatformError(f"HTTP {response.status}: {response_data}")
+            if status == 429:
+                retry_after = int(headers.get("retry-after", 60))
+                raise RateLimitError("Rate limited", retry_after=retry_after)
+            if status == 401:
+                raise AuthenticationError("Invalid API key")
+            if status == 403:
+                raise QuotaExceededError("Quota exceeded")
+            if status >= 500:
+                raise TransientError(f"Server error: {status}")
+            if status != 200:
+                raise PlatformError(f"HTTP {status}: {response_data}")
 
-                return response_data
+            return response_data
 
         except asyncio.TimeoutError:
             raise TransientError("Request timeout")
-        except aiohttp.ClientError as e:
-            raise TransientError(f"Network error: {e}")
+        except Exception as e:
+            # Map network-level exceptions to transient errors so callers can retry
+            if aiohttp and isinstance(e, aiohttp.ClientError):
+                raise TransientError(f"Network error: {e}")
+            if not aiohttp and isinstance(e, httpx.HTTPError):
+                raise TransientError(f"Network error: {e}")
+            raise
 
     def _create_error_response(self, error_message: str) -> Dict[str, Any]:
         """Create standardized error response."""

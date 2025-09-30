@@ -6,13 +6,17 @@ and automated recovery mechanisms.
 """
 
 import asyncio
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-import psutil
+try:
+    import psutil  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    psutil = None
 
 from app.utils.logger import get_logger
 
@@ -73,7 +77,31 @@ class SystemHealthChecker:
         start_time = datetime.now(timezone.utc)
 
         try:
-            # Get system metrics
+            if psutil is None:
+                details = {
+                    "cpu_percent": 0.0,
+                    "memory_percent": 0.0,
+                    "memory_available_mb": None,
+                    "disk_percent": None,
+                    "disk_free_gb": None,
+                    "load_average_1m": os.getloadavg()[0] if hasattr(os, "getloadavg") else 0.0,
+                    "python_version": sys.version,
+                    "note": "psutil not installed; metrics unavailable",
+                }
+
+                response_time = (
+                    datetime.now(timezone.utc) - start_time
+                ).total_seconds() * 1000
+
+                return HealthCheckResult(
+                    component="system_resources",
+                    status=HealthStatus.UNKNOWN,
+                    message="System metrics unavailable (psutil missing)",
+                    details=details,
+                    checked_at=start_time,
+                    response_time_ms=response_time,
+                )
+
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage("/")

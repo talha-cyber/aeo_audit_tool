@@ -129,7 +129,7 @@ class PriorityPolicy:
         # Apply deadline boost if enabled and job has deadline
         if self.deadline_priority_boost and hasattr(job, "deadline"):
             deadline = getattr(job, "deadline")
-            if deadline:
+            if isinstance(deadline, datetime):
                 time_to_deadline = (deadline - current_time).total_seconds() / 3600
                 if time_to_deadline < 24:  # Less than 24 hours
                     deadline_boost = (

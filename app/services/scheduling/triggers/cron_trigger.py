@@ -5,11 +5,15 @@ Provides cron expression based job scheduling with proper timezone handling,
 DST transitions, and comprehensive validation.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import pytz
-from croniter import croniter
+
+try:
+    from croniter import croniter
+except ImportError:  # pragma: no cover - fallback implementation below
+    croniter = None
 
 from app.utils.logger import get_logger
 
@@ -17,6 +21,119 @@ from .base import BaseTrigger, TriggerCalculationError, TriggerValidationError
 
 logger = get_logger(__name__)
 
+
+def _parse_cron_field(field: str, min_val: int, max_val: int) -> Optional[tuple[int, ...]]:
+    """Parse a cron field into an immutable tuple of allowed values."""
+    field = field.strip()
+    if field == "*" or not field:
+        return None
+
+    values = set()
+
+    for part in field.split(","):
+        part = part.strip()
+        if not part:
+            raise ValueError("Empty cron field component")
+
+        step = 1
+        if "/" in part:
+            base_part, step_part = part.split("/", 1)
+            if not step_part.isdigit() or int(step_part) <= 0:
+                raise ValueError(f"Invalid step value: {step_part}")
+            step = int(step_part)
+            part = base_part or "*"
+
+        if part == "*":
+            start, end = min_val, max_val
+        elif "-" in part:
+            start_str, end_str = part.split("-", 1)
+            start = int(start_str)
+            end = int(end_str)
+            if start > end:
+                raise ValueError(f"Range start {start} greater than end {end}")
+        else:
+            start = end = int(part)
+
+        if start < min_val or end > max_val:
+            raise ValueError(
+                f"Value outside valid range [{min_val}, {max_val}]: {start}-{end}"
+            )
+
+        values.update(range(start, end + 1, step))
+
+    return tuple(sorted(values))
+
+
+class _SimpleCronIter:
+    """Minimal cron iterator supporting 5/6 field expressions used in tests."""
+
+    def __init__(self, expression: str, start_time: datetime):
+        self.expression = expression
+        fields = expression.split()
+        if len(fields) not in (5, 6):
+            raise ValueError("Cron expression must have 5 or 6 fields")
+
+        if len(fields) == 5:
+            self.has_seconds = False
+            minute, hour, day, month, dow = fields
+            second = "0"
+        else:
+            self.has_seconds = True
+            second, minute, hour, day, month, dow = fields
+
+        ranges = CronTrigger.FIELD_RANGES
+        self.seconds = _parse_cron_field(second, *ranges["second"])
+        self.minutes = _parse_cron_field(minute, *ranges["minute"])
+        self.hours = _parse_cron_field(hour, *ranges["hour"])
+        self.days = _parse_cron_field(day, *ranges["day"])
+        self.months = _parse_cron_field(month, *ranges["month"])
+        self.dows = _parse_cron_field(dow, *ranges["dow"])
+
+        # Normalise start time
+        base = start_time.replace(microsecond=0)
+        if not self.has_seconds:
+            base = base.replace(second=0)
+        self.current = base
+
+    def _matches(self, dt: datetime) -> bool:
+        if self.seconds is not None and dt.second not in self.seconds:
+            return False
+        if self.minutes is not None and dt.minute not in self.minutes:
+            return False
+        if self.hours is not None and dt.hour not in self.hours:
+            return False
+        if self.months is not None and dt.month not in self.months:
+            return False
+
+        dom_match = True if self.days is None else dt.day in self.days
+        dow_match = True if self.dows is None else dt.weekday() in self.dows
+
+        if self.days is not None and self.dows is not None:
+            if not (dom_match or dow_match):
+                return False
+        else:
+            if not dom_match or not dow_match:
+                return False
+
+        return True
+
+    def get_next(self, return_type):
+        if return_type is not datetime:
+            raise ValueError("_SimpleCronIter only supports datetime return type")
+
+        step = timedelta(seconds=1 if self.has_seconds else 60)
+        candidate = self.current
+
+        for _ in range(100000):  # safety guard to prevent infinite loops
+            candidate = candidate + step
+            if not self.has_seconds:
+                candidate = candidate.replace(second=0)
+
+            if self._matches(candidate):
+                self.current = candidate
+                return candidate
+
+        raise ValueError("Unable to compute next cron run time")
 
 class CronTrigger(BaseTrigger):
     """
@@ -50,23 +167,30 @@ class CronTrigger(BaseTrigger):
         """Initialize cron trigger"""
         super().__init__(config)
 
-        # Parse and validate cron expression
-        self.expression = self.get_config_value("expression", required=True)
-        self.timezone_name = self.get_config_value("timezone", default="UTC")
+        # Normalised cron expression
+        expression = self.get_config_value("expression", required=True)
+        if not isinstance(expression, str):
+            raise TriggerValidationError("Cron expression must be a string")
+        self.expression = expression.strip()
+        self.cron_expression = self.expression
+        self.config["expression"] = self.cron_expression
 
-        # Get timezone object
-        try:
-            if self.timezone_name == "UTC":
-                self.tz = timezone.utc
-            else:
-                self.tz = pytz.timezone(self.timezone_name)
-        except Exception as e:
-            raise TriggerValidationError(
-                f"Invalid timezone: {self.timezone_name}"
-            ) from e
+        self._cron_factory = None
+        self._use_simple_cron = croniter is None
+        self.croniter_obj = None
+        self.tz = self.timezone  # alias used internally
 
-        # Initialize croniter
+        self.misfire_grace_time = int(
+            self.get_config_value("misfire_grace_time", default=self.misfire_grace_time)
+        )
+        self.config["misfire_grace_time"] = self.misfire_grace_time
+
+        # Initialize croniter or fallback iterator
         self._validate_and_prepare_croniter()
+
+    def now(self) -> datetime:  # type: ignore[override]
+        """Return current UTC time (patched in tests via module datetime)."""
+        return datetime.now(timezone.utc)
 
     def validate_config(self) -> None:
         """Validate cron trigger configuration"""
@@ -83,7 +207,7 @@ class CronTrigger(BaseTrigger):
         fields = expression.split()
         if len(fields) not in [5, 6]:
             raise TriggerValidationError(
-                f"Cron expression must have 5 or 6 fields, got {len(fields)}: '{expression}'"
+                f"Invalid cron expression: expected 5 or 6 fields, got {len(fields)}"
             )
 
         # Validate each field
@@ -171,32 +295,30 @@ class CronTrigger(BaseTrigger):
     def _validate_and_prepare_croniter(self) -> None:
         """Validate cron expression using croniter and prepare for use"""
         try:
-            # Test croniter with current time
-            now = datetime.now(self.tz)
-            test_cron = croniter(self.expression, now)
+            base_now = self.now()
+            now_local = base_now if self.tz == timezone.utc else base_now.astimezone(self.tz)
 
-            # Try to get next run to validate expression works
-            next_run = test_cron.get_next(datetime)
-            if next_run <= now:
-                # This shouldn't happen, but let's be safe
-                logger.warning(
-                    "Cron expression returned past time for next run",
-                    expression=self.expression,
-                    now=now.isoformat(),
-                    next_run=next_run.isoformat(),
-                )
+            if croniter:
+                test_cron = croniter(self.expression, now_local)
+                next_run = test_cron.get_next(datetime)
+                if next_run <= now_local:
+                    logger.warning(
+                        "Cron expression returned past time for next run",
+                        expression=self.expression,
+                        now=now_local.isoformat(),
+                        next_run=next_run.isoformat(),
+                    )
 
-            logger.debug(
-                "Cron expression validated successfully",
-                expression=self.expression,
-                timezone=self.timezone_name,
-                next_run=next_run.isoformat(),
-            )
+                self._cron_factory = lambda base: croniter(self.expression, base)
+                # Store a ready-to-use iterator for introspection in tests
+                self.croniter_obj = croniter(self.expression, now_local)
+            else:
+                _SimpleCronIter(self.expression, now_local)  # raises on invalid
+                self._cron_factory = lambda base: _SimpleCronIter(self.expression, base)
+                self.croniter_obj = _SimpleCronIter(self.expression, now_local)
 
         except Exception as e:
-            raise TriggerValidationError(
-                f"Invalid cron expression '{self.expression}': {e}"
-            ) from e
+            raise TriggerValidationError("Invalid cron expression") from e
 
     async def get_next_run_time(
         self, previous_run_time: Optional[datetime]
@@ -213,29 +335,21 @@ class CronTrigger(BaseTrigger):
         try:
             # Determine base time for calculation
             if previous_run_time:
-                # Start from previous run time to ensure we don't miss runs
                 base_time = previous_run_time
             else:
-                # For new jobs, start from current time
-                base_time = datetime.now(timezone.utc)
+                base_time = self.now()
 
-            # Convert to target timezone for cron calculation
-            if self.tz != timezone.utc:
-                if base_time.tzinfo != self.tz:
-                    base_time = base_time.astimezone(self.tz)
+            if base_time.tzinfo != self.tz:
+                base_time = base_time.astimezone(self.tz)
 
-            # Create croniter instance
-            cron = croniter(self.expression, base_time)
-
-            # Get next run time
+            cron = self._cron_factory(base_time)
             next_run = cron.get_next(datetime)
 
             # Convert back to UTC
             if next_run.tzinfo != timezone.utc:
                 next_run = next_run.astimezone(timezone.utc)
 
-            # Validate the calculated time is in the future
-            now_utc = datetime.now(timezone.utc)
+            now_utc = self.now()
             if next_run <= now_utc:
                 # Try once more from current time
                 logger.warning(
@@ -246,9 +360,9 @@ class CronTrigger(BaseTrigger):
                 )
 
                 current_in_tz = (
-                    now_utc.astimezone(self.tz) if self.tz != timezone.utc else now_utc
+                    now_utc if self.tz == timezone.utc else now_utc.astimezone(self.tz)
                 )
-                cron = croniter(self.expression, current_in_tz)
+                cron = self._cron_factory(current_in_tz)
                 next_run = cron.get_next(datetime)
 
                 if next_run.tzinfo != timezone.utc:
@@ -287,8 +401,9 @@ class CronTrigger(BaseTrigger):
         """Get human-readable trigger information"""
         try:
             # Try to get next few run times for display
-            now = datetime.now(self.tz if self.tz != timezone.utc else timezone.utc)
-            cron = croniter(self.expression, now)
+            base_now = self.now()
+            now = base_now if self.tz == timezone.utc else base_now.astimezone(self.tz)
+            cron = self._cron_factory(now)
 
             next_runs = []
             for _ in range(5):  # Get next 5 runs

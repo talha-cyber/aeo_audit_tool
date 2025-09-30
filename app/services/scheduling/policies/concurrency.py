@@ -88,6 +88,8 @@ class ConcurrencyPolicy:
             timeout_seconds: Timeout for acquiring execution slot
         """
         self.mode = mode
+        if isinstance(limits, dict):
+            limits = ConcurrencyLimits(**limits)
         self.limits = limits or ConcurrencyLimits()
         self.resource_requirements = resource_requirements
         self.priority_override = priority_override

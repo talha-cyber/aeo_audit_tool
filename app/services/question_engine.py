@@ -20,6 +20,17 @@ from app.services.providers import (
 )
 from app.services.providers.dynamic_provider import DynamicProvider
 from app.services.providers.template_provider import TemplateProvider
+from app.core.config import settings
+from app.services.question_engine_v2 import build_default_engine
+from app.services.question_engine_v2.engine import QuestionEngineV2
+from app.services.question_engine_v2.schemas import (
+    PersonaMode,
+    PersonaRequest,
+    ProviderConfig,
+    QuestionEngineRequest,
+    QuotaConfig,
+    SeedMixConfig,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -44,6 +55,8 @@ class QuestionEngine:
         Args:
             providers: A list of question provider instances.
         """
+        self._use_v2 = settings.QUESTION_ENGINE_V2
+        self._v2_engine: QuestionEngineV2 | None = None
         if providers is None:
             self.providers = [TemplateProvider(), DynamicProvider()]
         else:
@@ -112,6 +125,17 @@ class QuestionEngine:
         Returns:
             A list of prioritized Question objects.
         """
+        if self._use_v2:
+            return await self.generate_questions_v2(
+                client_brand=client_brand,
+                competitors=competitors,
+                industry=industry,
+                product_type=product_type,
+                audit_run_id=audit_run_id,
+                language=language,
+                max_questions=max_questions,
+            )
+
         ctx = QuestionContext(
             client_brand=client_brand,
             competitors=competitors,
@@ -148,6 +172,39 @@ class QuestionEngine:
         )
 
         return self.prioritize_questions(all_questions, max_questions)
+
+    async def generate_questions_v2(
+        self,
+        client_brand: str,
+        competitors: List[str],
+        industry: str,
+        product_type: str,
+        audit_run_id: uuid.UUID,
+        language: str = "en",
+        max_questions: int = 100,
+    ) -> List[Question]:
+        if not self._v2_engine:
+            self._v2_engine = build_default_engine(enable_dynamic=False)
+
+        persona_request = PersonaRequest(
+            mode=PersonaMode.B2C,
+            voices=["value_shopper"],
+            overrides=[],
+        )
+        request = QuestionEngineRequest(
+            client_brand=client_brand,
+            competitors=competitors,
+            industry=industry,
+            product_type=product_type,
+            audit_run_id=audit_run_id,
+            language=language,
+            personas=persona_request,
+            seed_mix=SeedMixConfig(unseeded=0.5, competitor=0.3, brand=0.2),
+            quotas=QuotaConfig(total=max_questions, per_persona_min=1),
+            providers=ProviderConfig(),
+        )
+
+        return await self._v2_engine.generate(request)
 
     def prioritize_questions(
         self, questions: List[Question], max_questions: int

@@ -171,15 +171,24 @@ class SchedulerEngine:
 
         # Wait for scheduler loop to finish
         if self._scheduler_task:
+            task_ref = self._scheduler_task
             try:
-                await asyncio.wait_for(self._scheduler_task, timeout=30)
+                if asyncio.isfuture(task_ref) or asyncio.iscoroutine(task_ref):
+                    await asyncio.wait_for(task_ref, timeout=30)
+                elif callable(task_ref):
+                    maybe_coro = task_ref()
+                    if asyncio.isfuture(maybe_coro) or asyncio.iscoroutine(maybe_coro):
+                        await asyncio.wait_for(maybe_coro, timeout=30)
+                # If the reference is a synchronous sentinel (already completed),
+                # there's nothing to wait on.
             except asyncio.TimeoutError:
                 logger.warning("Scheduler loop didn't stop gracefully, cancelling")
-                self._scheduler_task.cancel()
-                try:
-                    await self._scheduler_task
-                except asyncio.CancelledError:
-                    pass
+                if hasattr(self._scheduler_task, "cancel"):
+                    self._scheduler_task.cancel()
+                    try:
+                        await self._scheduler_task
+                    except asyncio.CancelledError:
+                        pass
 
         # Release scheduler lock
         try:
@@ -485,6 +494,13 @@ class SchedulerEngine:
                 f"No handler registered for job type: {job.job_type}",
                 job_id=job.job_id,
                 job_name=job.name,
+            )
+            self.repository.update_job(
+                job.job_id,
+                {
+                    "status": ScheduledJobStatus.DISABLED,
+                    "updated_at": datetime.now(timezone.utc),
+                },
             )
             return
 

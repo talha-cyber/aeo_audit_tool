@@ -1,0 +1,16 @@
+# B2C persona presets combining role, driver, contexts
+
+value_shopper:
+  role: "skeptic"
+  driver: "deal_hunter"
+  contexts: ["evaluation", "purchase"]
+
+loyalist:
+  role: "advocate"
+  driver: "values_aligned"
+  contexts: ["purchase", "loyalty"]
+
+casual_researcher:
+  role: "researcher"
+  driver: "convenience"
+  contexts: ["awareness", "evaluation"]

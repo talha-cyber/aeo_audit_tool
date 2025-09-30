@@ -197,3 +197,26 @@ async def test_question_engine_deduplication(question_context, monkeypatch):
     assert results[0].category == "dynamic"
     assert results[0].priority_score >= 8
     monkeypatch.undo()
+
+
+@pytest.mark.asyncio
+async def test_question_engine_v2_flag(monkeypatch):
+    from app.core.config import settings
+
+    previous = settings.QUESTION_ENGINE_V2
+    settings.QUESTION_ENGINE_V2 = True
+
+    engine = QuestionEngine()
+
+    results = await engine.generate_questions(
+        client_brand="ClientBrand",
+        competitors=["CompetitorA"],
+        industry="SaaS",
+        product_type="CRM",
+        audit_run_id=uuid.uuid4(),
+        max_questions=3,
+    )
+
+    assert len(results) > 0
+    assert len(results) <= 3
+    settings.QUESTION_ENGINE_V2 = previous

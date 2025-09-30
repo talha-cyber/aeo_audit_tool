@@ -619,6 +619,40 @@ class TestDependencyTrigger:
 
         assert result is True  # At least one dependency satisfied
 
+    @pytest.mark.asyncio
+    async def test_dependency_completion_time_selection(self):
+        """Ensure earliest completion time is respected."""
+        base_time = datetime(2024, 1, 15, 12, 0, tzinfo=timezone.utc)
+        config = {
+            "trigger_type": "dependency",
+            "depends_on": ["job-1", "job-2"],
+            "dependency_type": "success",
+        }
+
+        trigger = DependencyTrigger(config)
+        trigger.update_dependency_status("job-1", True, completed_at=base_time)
+        trigger.update_dependency_status(
+            "job-2", True, completed_at=base_time + timedelta(minutes=10)
+        )
+
+        earliest = await trigger._get_earliest_dependency_completion_time()
+
+        assert earliest == trigger.normalize_datetime(base_time)
+
+    @pytest.mark.asyncio
+    async def test_dependency_completion_time_none_when_unsatisfied(self):
+        """Earliest completion returns None when no dependencies satisfied."""
+        config = {
+            "trigger_type": "dependency",
+            "depends_on": ["job-1", "job-2"],
+        }
+
+        trigger = DependencyTrigger(config)
+        trigger.update_dependency_status("job-1", False)
+        trigger.update_dependency_status("job-2", None)
+
+        assert await trigger._get_earliest_dependency_completion_time() is None
+
     def test_dependency_get_trigger_info(self):
         """Test dependency trigger info generation"""
         config = {

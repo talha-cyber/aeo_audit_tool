@@ -1,0 +1,16 @@
+# B2C Drivers catalog (placeholder values)
+
+deal_hunter:
+  label: "Discount Sensitivity"
+  emotional_anchor: "fear_of_overpaying"
+  weight: 1.0
+
+convenience:
+  label: "Ease & Convenience"
+  emotional_anchor: "desire_for_simplicity"
+  weight: 0.9
+
+values_aligned:
+  label: "Values Alignment"
+  emotional_anchor: "desire_for_trust"
+  weight: 1.1

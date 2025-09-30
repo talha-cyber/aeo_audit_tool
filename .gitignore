@@ -6,3 +6,4 @@ __pycache__/
 venv/
 *.pdf
 architecture_pdf files/
+node_modules

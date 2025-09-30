@@ -15,6 +15,14 @@ class QuestionContext(BaseModel):
     # Optional localization and market context (non-breaking)
     language: str = "en"  # ISO code, e.g., 'en', 'de'
     market: Optional[str] = None  # e.g., 'US', 'DE', 'EU'
+    engine_version: Optional[str] = None
+    persona_mode: Optional[str] = None
+    persona_voices: Optional[List[str]] = None
+    persona_overrides: Optional[List[Dict[str, Any]]] = None
+    seed_mix: Optional[Dict[str, float]] = None
+    quotas: Optional[Dict[str, Any]] = None
+    provider_overrides: Optional[Dict[str, Any]] = None
+    options: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Question(BaseModel):
@@ -25,9 +33,16 @@ class Question(BaseModel):
     category: str
     provider: str
     priority_score: float = 0.0
+    persona: Optional[str] = None
+    role: Optional[str] = None
+    driver: Optional[str] = None
+    emotional_anchor: Optional[str] = None
+    context_stage: Optional[str] = None
+    seed_type: Optional[str] = None
+    provider_version: Optional[str] = None
     cost: Optional[float] = None
     tokens: Optional[Dict[str, int]] = None
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ProviderResult(BaseModel):

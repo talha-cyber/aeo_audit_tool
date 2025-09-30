@@ -24,6 +24,7 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - SENTRY_DSN=${SENTRY_DSN:-}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-https://your-agency-portal.example}
       - LOG_LEVEL=INFO
     depends_on:
       - db
@@ -32,7 +33,7 @@ services:
       - ./reports:/app/reports
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,6 +60,7 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - SENTRY_DSN=${SENTRY_DSN:-}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-https://your-agency-portal.example}
       - LOG_LEVEL=INFO
     depends_on:
       - db
@@ -89,6 +91,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-https://your-agency-portal.example}
     depends_on:
       - db
       - redis

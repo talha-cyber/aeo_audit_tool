@@ -1,0 +1,16 @@
+# B2B Drivers catalog (placeholder values)
+
+roi_tco:
+  label: "ROI / TCO / Payback"
+  emotional_anchor: "fear_of_waste"
+  weight: 1.2
+
+trust_compliance:
+  label: "Risk & Compliance"
+  emotional_anchor: "desire_for_safety"
+  weight: 1.1
+
+scalability:
+  label: "Scale & Integration"
+  emotional_anchor: "desire_for_control"
+  weight: 1.0

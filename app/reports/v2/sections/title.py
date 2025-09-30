@@ -9,10 +9,12 @@ This module creates the cover page with:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 from reportlab.lib.units import inch
-from reportlab.platypus import Paragraph, Spacer, Table
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Image, Paragraph, Spacer, Table
 
 from ..theme import (
     Theme,
@@ -21,6 +23,9 @@ from ..theme import (
     create_table_styles,
     format_date,
 )
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def build(theme: Theme, data: Dict[str, Any]) -> List[Any]:
@@ -56,11 +61,34 @@ def build(theme: Theme, data: Dict[str, Any]) -> List[Any]:
 
     # Optional logo space (if logo_path is provided in theme)
     if theme.logo_path:
-        # TODO: Add logo image when path is provided
-        # from reportlab.platypus import Image
-        # logo = Image(theme.logo_path, width=2*inch, height=1*inch)
-        # story.append(logo)
-        pass
+        logo_path = Path(theme.logo_path)
+        if logo_path.is_file():
+            try:
+                image_reader = ImageReader(str(logo_path))
+                width, height = image_reader.getSize()
+                if width and height:
+                    max_width = float(data.get("logo_max_width", 2.5 * inch))
+                    target_width = min(max_width, width) if width > 0 else max_width
+                    aspect_ratio = height / float(width) if width else 1.0
+                    target_height = target_width * aspect_ratio
+                else:
+                    target_width = 2.5 * inch
+                    target_height = 1.0 * inch
+
+                logo = Image(
+                    str(logo_path), width=target_width, height=target_height
+                )
+                logo.hAlign = "CENTER"
+                story.append(logo)
+                story.append(Spacer(1, 0.25 * inch))
+            except Exception as exc:  # pragma: no cover - visual asset
+                logger.warning(
+                    "Failed to render report logo",
+                    logo_path=str(logo_path),
+                    error=str(exc),
+                )
+        else:
+            logger.warning("Report logo path not found", logo_path=str(logo_path))
 
     # Report generation disclaimer
     disclaimer = create_disclaimer(theme)

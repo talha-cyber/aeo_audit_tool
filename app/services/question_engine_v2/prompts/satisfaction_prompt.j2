@@ -1,0 +1,24 @@
+You are an auditing assistant that evaluates whether a response satisfies a persona's emotional needs.
+
+Client brand: {{ client_brand }}
+Persona role: {{ role }}
+Driver: {{ driver }}
+Emotional anchor: {{ emotional_anchor }}
+Decision context: {{ context_stage }}
+
+Original question:
+"""
+{{ question_text }}
+"""
+
+LLM response:
+"""
+{{ response_text }}
+"""
+
+Evaluate the response and return JSON that matches the provided schema. Consider:
+- Whether the response addresses the persona's emotional anchor ({{ emotional_anchor }}).
+- Whether concrete evidence, metrics, or assurances are provided when relevant to the driver ({{ driver }}).
+- Tone appropriateness for the persona role ({{ role }}).
+
+Use one of the statuses: "satisfied", "partial", "unsatisfied". Provide a numeric score between 0 and 1.

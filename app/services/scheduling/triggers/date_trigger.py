@@ -4,7 +4,7 @@ One-time date-based trigger implementation.
 Provides scheduling for jobs that should run exactly once at a specific date/time.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from app.utils.logger import get_logger
@@ -30,32 +30,32 @@ class DateTrigger(BaseTrigger):
         """Initialize date trigger"""
         super().__init__(config)
 
-        # Parse run date
         self.run_date = self.validate_datetime_config("run_date", required=True)
+        self.past_date_grace_seconds = int(
+            self.get_config_value("past_date_grace_seconds", default=300)
+        )
+        self.config["past_date_grace_seconds"] = self.past_date_grace_seconds
+        self.has_executed = bool(self.get_config_value("has_executed", default=False))
+        self.config["has_executed"] = self.has_executed
 
-        # Track if already executed
-        self.has_executed = self.get_config_value("has_executed", default=False)
+    def now(self) -> datetime:  # type: ignore[override]
+        return datetime.now(timezone.utc)
 
     def validate_config(self) -> None:
         """Validate date trigger configuration"""
         run_date = self.validate_datetime_config("run_date", required=True)
 
-        # Validate run date is in the future (with some grace for processing time)
-        now = datetime.now(timezone.utc)
-        grace_seconds = self.get_config_value(
-            "past_date_grace_seconds", default=60
-        )  # 1 minute grace
-
-        if run_date < now - timezone.utc.localize(
-            datetime.fromtimestamp(grace_seconds)
-        ):
+        now = self.now()
+        grace_seconds = int(
+            self.get_config_value("past_date_grace_seconds", default=300)
+        )
+        if run_date < now - timedelta(seconds=grace_seconds):
             logger.warning(
                 "Date trigger run_date is in the past",
                 run_date=run_date.isoformat(),
                 current_time=now.isoformat(),
                 grace_seconds=grace_seconds,
             )
-            # Don't raise error - allow scheduling past dates for recovery scenarios
 
         # Validate has_executed flag
         has_executed = self.get_config_value("has_executed", default=False)
@@ -88,18 +88,15 @@ class DateTrigger(BaseTrigger):
                 return None
 
             # Check if run date is still in the future
-            now = datetime.now(timezone.utc)
+            now = self.now()
             if self.run_date <= now:
                 # Run date is in the past - check grace period
-                grace_seconds = self.get_config_value(
-                    "past_date_grace_seconds", default=300
-                )  # 5 minutes
-                if (now - self.run_date).total_seconds() > grace_seconds:
+                if (now - self.run_date).total_seconds() > self.past_date_grace_seconds:
                     logger.warning(
                         "Date trigger run date is too far in the past, skipping",
                         run_date=self.run_date.isoformat(),
                         current_time=now.isoformat(),
-                        grace_seconds=grace_seconds,
+                        grace_seconds=self.past_date_grace_seconds,
                     )
                     return None
 
@@ -131,7 +128,7 @@ class DateTrigger(BaseTrigger):
     def get_trigger_info(self) -> Dict[str, Any]:
         """Get human-readable trigger information"""
         try:
-            now = datetime.now(timezone.utc)
+            now = self.now()
 
             # Determine status
             if self.has_executed:
@@ -192,7 +189,7 @@ class DateTrigger(BaseTrigger):
         Date triggers are more strict about timing since they only run once.
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = self.now()
 
         # If already executed, always skip
         if self.has_executed:
@@ -200,18 +197,15 @@ class DateTrigger(BaseTrigger):
             return True
 
         # Check if we're significantly past the scheduled time
-        grace_seconds = self.get_config_value(
-            "past_date_grace_seconds", default=300
-        )  # 5 minutes
         delay_seconds = (current_time - scheduled_time).total_seconds()
 
-        if delay_seconds > grace_seconds:
+        if delay_seconds > self.past_date_grace_seconds:
             logger.warning(
                 "Skipping date trigger run - too far past scheduled time",
                 scheduled_time=scheduled_time.isoformat(),
                 current_time=current_time.isoformat(),
                 delay_seconds=delay_seconds,
-                grace_seconds=grace_seconds,
+                grace_seconds=self.past_date_grace_seconds,
             )
             return True
 

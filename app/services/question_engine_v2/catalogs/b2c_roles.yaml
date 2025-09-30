@@ -1,0 +1,16 @@
+# B2C Roles catalog (placeholder values)
+
+advocate:
+  label: "Brand Advocate"
+  description: "Existing customer championing the product to peers."
+  default_context_stage: "loyalty"
+
+skeptic:
+  label: "Skeptical Buyer"
+  description: "Potential customer with high need for reassurance."
+  default_context_stage: "evaluation"
+
+researcher:
+  label: "Information Seeker"
+  description: "Consumer gathering details before purchase."
+  default_context_stage: "awareness"

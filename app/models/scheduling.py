@@ -39,6 +39,7 @@ class ScheduledJobStatus(str, Enum):
     PAUSED = "paused"  # Job is temporarily disabled
     EXPIRED = "expired"  # Job has reached its end date
     DISABLED = "disabled"  # Job is permanently disabled
+    CANCELLED = "cancelled"  # Job cancelled manually
     DELETED = "deleted"  # Job is marked for deletion
 
 
@@ -47,7 +48,8 @@ class JobExecutionStatus(str, Enum):
 
     PENDING = "pending"  # Execution is scheduled but not started
     RUNNING = "running"  # Execution is currently in progress
-    COMPLETED = "completed"  # Execution completed successfully
+    SUCCESS = "completed"  # Execution completed successfully (alias)
+    COMPLETED = SUCCESS
     FAILED = "failed"  # Execution failed
     CANCELLED = "cancelled"  # Execution was cancelled
     TIMEOUT = "timeout"  # Execution timed out
@@ -197,6 +199,39 @@ class ScheduledJob(Base):
         if not (1 <= priority <= 10):
             raise ValueError("Priority must be between 1 and 10")
         return priority
+
+    # Compatibility alias for legacy code/tests that reference job_id
+    @property
+    def job_id(self) -> str:  # type: ignore[override]
+        return self.id
+
+    @job_id.setter
+    def job_id(self, value: str) -> None:
+        self.id = value
+
+    @property
+    def next_run_time(self) -> Optional[datetime]:
+        return self.next_run_at
+
+    @next_run_time.setter
+    def next_run_time(self, value: Optional[datetime]) -> None:
+        self.next_run_at = value
+
+    @property
+    def last_run_time(self) -> Optional[datetime]:
+        return self.last_run_at
+
+    @last_run_time.setter
+    def last_run_time(self, value: Optional[datetime]) -> None:
+        self.last_run_at = value
+
+    @property
+    def retry_delay_seconds(self) -> int:
+        return self.retry_delay
+
+    @retry_delay_seconds.setter
+    def retry_delay_seconds(self, value: int) -> None:
+        self.retry_delay = value
 
     @hybrid_property
     def is_active(self) -> bool:
@@ -434,6 +469,14 @@ class JobDependency(Base):
             "delay_seconds": self.delay_seconds,
             "created_at": self.created_at.isoformat(),
         }
+
+    @property
+    def depends_on_job_id(self) -> str:
+        return self.depends_on_id
+
+    @depends_on_job_id.setter
+    def depends_on_job_id(self, value: str) -> None:
+        self.depends_on_id = value
 
 
 class SchedulerLock(Base):

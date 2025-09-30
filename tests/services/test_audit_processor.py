@@ -16,76 +16,89 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.audit import AuditRun, Client
 from app.services.audit_processor import AuditProcessor
 from app.services.platform_manager import PlatformManager
 from app.utils.error_handler import AuditConfigurationError, PlatformError
 
 
+@pytest.fixture(autouse=True)
+def disable_question_engine_v2(monkeypatch):
+    """Ensure tests exercise question engine v1 path by default."""
+    monkeypatch.setattr(settings, "QUESTION_ENGINE_V2", False)
+
+
+@pytest.fixture
+def mock_db_session():
+    """Mock database session"""
+    session = Mock(spec=Session)
+    session.query.return_value.filter.return_value.first.return_value = None
+    session.commit = Mock()
+    session.rollback = Mock()
+    session.close = Mock()
+    return session
+
+
+@pytest.fixture
+def mock_platform_manager():
+    """Mock platform manager with test platforms"""
+    manager = Mock(spec=PlatformManager)
+    manager.get_available_platforms.return_value = ["openai", "anthropic"]
+
+    # Mock platform instances
+    mock_platform = Mock()
+    mock_platform.safe_query = AsyncMock(
+        return_value={"choices": [{"message": {"content": "Test response"}}]}
+    )
+    mock_platform.extract_text_response.return_value = "Test response content"
+    mock_platform.health_check = AsyncMock(return_value=True)
+
+    manager.get_platform.return_value = mock_platform
+    return manager
+
+
+@pytest.fixture
+def sample_audit_run():
+    """Sample audit run for testing"""
+    client = Client(
+        id="550e8400-e29b-41d4-a716-446655440001",
+        name="Test Company",
+        industry="Technology",
+        product_type="SaaS",
+        competitors=["Competitor A", "Competitor B"],
+    )
+
+    audit_run = AuditRun(
+        id="550e8400-e29b-41d4-a716-446655440000",  # Valid UUID format
+        client_id="550e8400-e29b-41d4-a716-446655440001",
+        client=client,
+        config={
+            "platforms": ["openai"],
+            "question_count": 5,
+            "client": {
+                "name": "Test Company",
+                "industry": "Technology",
+                "product_type": "SaaS",
+                "competitors": ["Competitor A", "Competitor B"],
+            },
+        },
+        status="pending",
+    )
+
+    return audit_run
+
+
+@pytest.fixture
+def audit_processor(mock_db_session, mock_platform_manager, disable_question_engine_v2):
+    """Create audit processor with mocked dependencies"""
+    processor = AuditProcessor(mock_db_session, mock_platform_manager)
+    processor.question_engine_v2 = None
+    return processor
+
+
 class TestAuditProcessor:
     """Test cases for the main AuditProcessor class"""
-
-    @pytest.fixture
-    def mock_db_session(self):
-        """Mock database session"""
-        session = Mock(spec=Session)
-        session.query.return_value.filter.return_value.first.return_value = None
-        session.commit = Mock()
-        session.rollback = Mock()
-        session.close = Mock()
-        return session
-
-    @pytest.fixture
-    def mock_platform_manager(self):
-        """Mock platform manager with test platforms"""
-        manager = Mock(spec=PlatformManager)
-        manager.get_available_platforms.return_value = ["openai", "anthropic"]
-
-        # Mock platform instances
-        mock_platform = Mock()
-        mock_platform.safe_query = AsyncMock(
-            return_value={"choices": [{"message": {"content": "Test response"}}]}
-        )
-        mock_platform.extract_text_response.return_value = "Test response content"
-        mock_platform.health_check = AsyncMock(return_value=True)
-
-        manager.get_platform.return_value = mock_platform
-        return manager
-
-    @pytest.fixture
-    def sample_audit_run(self):
-        """Sample audit run for testing"""
-        client = Client(
-            id="550e8400-e29b-41d4-a716-446655440001",
-            name="Test Company",
-            industry="Technology",
-            product_type="SaaS",
-            competitors=["Competitor A", "Competitor B"],
-        )
-
-        audit_run = AuditRun(
-            id="550e8400-e29b-41d4-a716-446655440000",  # Valid UUID format
-            client_id="550e8400-e29b-41d4-a716-446655440001",
-            client=client,
-            config={
-                "platforms": ["openai"],
-                "question_count": 5,
-                "client": {
-                    "name": "Test Company",
-                    "industry": "Technology",
-                    "product_type": "SaaS",
-                    "competitors": ["Competitor A", "Competitor B"],
-                },
-            },
-            status="pending",
-        )
-
-        return audit_run
-
-    @pytest.fixture
-    def audit_processor(self, mock_db_session, mock_platform_manager):
-        """Create audit processor with mocked dependencies"""
-        return AuditProcessor(mock_db_session, mock_platform_manager)
 
     @pytest.mark.asyncio
     async def test_audit_processor_initialization(self, audit_processor):
@@ -109,6 +122,7 @@ class TestAuditProcessor:
         with patch(
             "app.services.audit_processor.QuestionEngine"
         ) as mock_question_engine:
+            assert audit_processor.question_engine_v2 is None
             mock_questions = [
                 Mock(id="q1", question_text="Test question 1", category="comparison"),
                 Mock(

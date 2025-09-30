@@ -203,7 +203,8 @@ class RetryPolicy(ABC):
             jitter_amount = delay_seconds * 0.1  # 10% jitter
             delay_seconds += random.uniform(-jitter_amount, jitter_amount)
 
-        # Ensure delay is within bounds
+        # Enforce minimum base delay and clamp to max bounds
+        delay_seconds = max(self.base_delay_seconds, delay_seconds)
         delay_seconds = max(1.0, min(delay_seconds, self.max_delay_seconds))
 
         next_retry_at = failed_at + timedelta(seconds=delay_seconds)

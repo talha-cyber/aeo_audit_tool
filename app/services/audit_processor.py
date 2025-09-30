@@ -18,22 +18,8 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-# Helper to make data JSON serializable (UUID/datetime)
-
-
-def _to_jsonable(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {k: _to_jsonable(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_to_jsonable(v) for v in value]
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return value
-
-
 from app.core.audit_config import get_audit_settings
+from app.core.config import settings
 from app.models import audit as audit_models
 from app.models import question as question_models
 from app.models import response as response_models
@@ -49,10 +35,34 @@ from app.services.brand_detection.core.detector import (
 )
 from app.services.platform_manager import PlatformManager
 from app.services.question_engine import QuestionContext, QuestionEngine
+from app.services.question_engine_v2 import QuestionEngineV2, build_default_engine
+from app.services.question_engine_v2.schemas import (
+    PersonaMode,
+    PersonaRequest,
+    PersonaSelection,
+    ProviderConfig,
+    QuestionEngineRequest,
+    QuotaConfig,
+    SeedMixConfig,
+)
 from app.utils.error_handler import AuditConfigurationError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _to_jsonable(value: Any) -> Any:
+    """Make values JSON serialisable for persistence."""
+
+    if isinstance(value, dict):
+        return {k: _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(v) for v in value]
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 
 class AuditStatus(Enum):
@@ -100,10 +110,26 @@ class AuditProcessor:
     and progress tracking with comprehensive error handling and observability.
     """
 
-    def __init__(self, db: Session, platform_manager: Optional[PlatformManager] = None):
+    def __init__(
+        self,
+        db: Session,
+        platform_manager: Optional[PlatformManager] = None,
+        *,
+        question_engine: Optional[QuestionEngine] = None,
+        question_engine_v2: Optional[QuestionEngineV2] = None,
+    ):
         self.db = db
         self.platform_manager = platform_manager or PlatformManager()
-        self.question_engine = QuestionEngine()
+        self._question_engine: Optional[QuestionEngine] = question_engine
+        self._question_engine_v2: Optional[QuestionEngineV2] = (
+            question_engine_v2
+            if question_engine_v2 is not None
+            else (
+                build_default_engine(enable_dynamic=True)
+                if settings.QUESTION_ENGINE_V2
+                else None
+            )
+        )
         self.brand_detector = None  # Will be initialized when needed
         self.metrics = get_audit_metrics()
         self.settings = get_audit_settings()
@@ -113,6 +139,30 @@ class AuditProcessor:
         self.max_questions = self.settings.AUDIT_MAX_QUESTIONS
         self.inter_batch_delay = self.settings.AUDIT_INTER_BATCH_DELAY
         self.platform_timeout = self.settings.AUDIT_PLATFORM_TIMEOUT_SECONDS
+
+    def _ensure_question_engine(self) -> QuestionEngine:
+        if self._question_engine is None:
+            self._question_engine = QuestionEngine()
+        return self._question_engine
+
+    def _get_question_engine_v2(self) -> Optional[QuestionEngineV2]:
+        return self._question_engine_v2
+
+    @property
+    def question_engine(self) -> QuestionEngine:
+        return self._ensure_question_engine()
+
+    @question_engine.setter
+    def question_engine(self, engine: QuestionEngine) -> None:
+        self._question_engine = engine
+
+    @property
+    def question_engine_v2(self) -> Optional[QuestionEngineV2]:
+        return self._question_engine_v2
+
+    @question_engine_v2.setter
+    def question_engine_v2(self, engine: Optional[QuestionEngineV2]) -> None:
+        self._question_engine_v2 = engine
 
     async def run_audit(self, audit_run_id: str) -> str:
         """
@@ -211,7 +261,17 @@ class AuditProcessor:
         # Validate configuration
         config = audit_run.config or {}
         if not config.get("client"):
-            raise ValueError("Audit run missing client configuration")
+            client_model = audit_run.client
+            if client_model is None:
+                raise ValueError("Audit run missing client configuration")
+
+            config["client"] = {
+                "name": client_model.name,
+                "industry": client_model.industry,
+                "product_type": client_model.product_type,
+                "competitors": client_model.competitors or [],
+            }
+            audit_run.config = config
 
         contextual_logger.info(
             "Audit run loaded and validated", status=audit_run.status
@@ -233,18 +293,27 @@ class AuditProcessor:
 
             # Get available platforms
             selected_platforms = config.get("platforms", [])
+            available_pool = set(self.platform_manager.get_available_platforms())
             available_platforms = []
 
-            for platform_name in selected_platforms:
-                if self.platform_manager.is_platform_available(platform_name):
-                    available_platforms.append(platform_name)
-                else:
-                    contextual_logger.warning(
-                        "Platform not available, skipping", platform=platform_name
-                    )
+            if available_pool:
+                for platform_name in selected_platforms:
+                    if platform_name in available_pool:
+                        available_platforms.append(platform_name)
+                    elif self.platform_manager.is_platform_available(platform_name):
+                        available_platforms.append(platform_name)
+                    else:
+                        contextual_logger.warning(
+                            "Platform not available, skipping", platform=platform_name
+                        )
+            else:
+                contextual_logger.warning(
+                    "No platforms reported as available by manager",
+                    requested_platforms=selected_platforms,
+                )
 
             if not available_platforms:
-                raise ValueError("No platforms available for audit execution")
+                raise AuditConfigurationError("No platforms available for audit execution")
 
             contextual_logger.info(
                 "Execution context prepared",
@@ -271,39 +340,101 @@ class AuditProcessor:
             start_time = time.time()
 
             # Create question context for the engine
+            try:
+                audit_uuid = uuid.UUID(str(audit_run.id))
+            except (ValueError, TypeError, AttributeError):
+                audit_uuid = uuid.uuid5(uuid.NAMESPACE_OID, str(audit_run.id))
+
+            client_context = context.get("client") or (audit_run.config or {}).get("client")
+            if not client_context:
+                raise AuditConfigurationError("Missing client context for question generation")
+
             question_context = QuestionContext(
-                client_brand=context["client"]["name"],
-                competitors=context["client"].get("competitors", []),
-                industry=context["client"]["industry"],
-                product_type=context["client"].get("product_type"),
-                audit_run_id=uuid.UUID(audit_run.id),
+                client_brand=client_context["name"],
+                competitors=client_context.get("competitors", []),
+                industry=client_context["industry"],
+                product_type=client_context.get("product_type"),
+                audit_run_id=audit_uuid,
             )
 
             # Generate questions via QuestionEngine
-            raw_questions = await self.question_engine.generate_questions(
-                client_brand=question_context.client_brand,
-                competitors=question_context.competitors,
-                industry=question_context.industry,
-                product_type=question_context.product_type,
-                audit_run_id=question_context.audit_run_id,
-                language=context.get("language", "en"),
-                max_questions=context.get("max_questions", 100),
-            )
+            max_questions = context.get("max_questions", self.max_questions)
+            engine_v2 = self._get_question_engine_v2()
+            if engine_v2:
+                persona_config = context.get("personas", {})
+                overrides = [
+                    PersonaSelection(
+                        role=override.get("role"),
+                        driver=override.get("driver"),
+                        contexts=override.get("contexts", []),
+                        voice=override.get("voice"),
+                    )
+                    for override in persona_config.get("overrides", [])
+                    if override.get("role") and override.get("driver")
+                ]
+                persona_request = PersonaRequest(
+                    mode=PersonaMode(persona_config.get("mode", PersonaMode.B2C.value)),
+                    voices=persona_config.get("voices", []),
+                    overrides=overrides,
+                )
+                request = QuestionEngineRequest(
+                    client_brand=question_context.client_brand,
+                    competitors=question_context.competitors,
+                    industry=question_context.industry,
+                    product_type=question_context.product_type,
+                    audit_run_id=audit_uuid,
+                    language=context.get("language", "en"),
+                    personas=persona_request,
+                    seed_mix=SeedMixConfig(unseeded=0.5, competitor=0.3, brand=0.2),
+                    quotas=QuotaConfig(total=max_questions, per_persona_min=1),
+                    providers=ProviderConfig(),
+                )
+                raw_questions = await engine_v2.generate(request)
+            else:
+                engine = self._ensure_question_engine()
+                question_result = engine.generate_questions(
+                    client_brand=question_context.client_brand,
+                    competitors=question_context.competitors,
+                    industry=question_context.industry,
+                    product_type=question_context.product_type,
+                    audit_run_id=question_context.audit_run_id,
+                    language=context.get("language", "en"),
+                    max_questions=max_questions,
+                )
+                if asyncio.iscoroutine(question_result) or isinstance(
+                    question_result, asyncio.Future
+                ):
+                    raw_questions = await question_result
+                else:
+                    raw_questions = question_result
 
             # Convert to dict format for further processing
             questions_list = []
             for question in raw_questions:
-                question_dict = {
-                    "question": question.question_text,
-                    "category": question.category,
-                    "question_type": getattr(question, "question_type", "general"),
-                    "priority_score": getattr(question, "priority_score", 5.0),
-                    "target_brand": getattr(question, "target_brand", None),
-                    "provider": question.provider,
-                    "metadata": question.model_dump()
-                    if hasattr(question, "model_dump")
-                    else {},
-                }
+                if isinstance(question, dict):
+                    question_dict = {
+                        "question": question.get("question")
+                        or question.get("question_text")
+                        or "",
+                        "category": question.get("category", "unknown"),
+                        "question_type": question.get("question_type", "general"),
+                        "priority_score": question.get("priority_score", 5.0),
+                        "target_brand": question.get("target_brand"),
+                        "provider": question.get("provider", "question_engine"),
+                        "metadata": question.get("metadata", {}),
+                    }
+                else:
+                    question_dict = {
+                        "question": question.question_text,
+                        "category": question.category,
+                        "question_type": getattr(question, "question_type", "general"),
+                        "priority_score": getattr(question, "priority_score", 5.0),
+                        "target_brand": getattr(question, "target_brand", None),
+                        "provider": getattr(question, "provider", "question_engine"),
+                        "metadata": question.model_dump()
+                        if hasattr(question, "model_dump")
+                        else {},
+                    }
                 questions_list.append(question_dict)
 
             # Apply prioritization and limit
@@ -364,20 +495,23 @@ class AuditProcessor:
         with add_stage_context("question_persistence"):
             question_records = []
 
-            for question_data in questions:
-                serialized_metadata = _to_jsonable(question_data.get("metadata", {}))
-                question_record = question_models.Question(
-                    id=str(uuid.uuid4()),
-                    audit_run_id=audit_run_id,
+        for question_data in questions:
+            serialized_metadata = _to_jsonable(question_data.get("metadata", {}))
+            question_record = question_models.Question(
+                id=str(uuid.uuid4()),
+                audit_run_id=audit_run_id,
                     question_text=question_data["question"],
                     category=question_data.get("category", "unknown"),
                     question_type=question_data.get("question_type", "unknown"),
                     priority_score=question_data.get("priority_score", 0.0),
                     target_brand=question_data.get("target_brand"),
                     provider=question_data.get("provider", "question_engine"),
-                    question_metadata=serialized_metadata,
-                )
-                question_records.append(question_record)
+                question_metadata=serialized_metadata,
+            )
+            # Propagate generated question ID back to caller so downstream processing
+            # can associate responses with persisted questions.
+            question_data["id"] = question_record.id
+            question_records.append(question_record)
 
             self.db.bulk_save_objects(question_records)
             self.db.commit()
@@ -507,6 +641,7 @@ class AuditProcessor:
         """Process a single question on a specific platform"""
 
         question_text = question_data["question"]
+        question_id = question_data.get("id")
         start_time = time.time()
 
         try:
@@ -523,8 +658,11 @@ class AuditProcessor:
             # Get platform client
             platform = self.platform_manager.get_platform(platform_name)
 
-            # Execute query with platform (using context manager to initialize session)
-            async with platform:
+            # Execute query with platform (context manager optional)
+            if hasattr(platform, "__aenter__") and hasattr(platform, "__aexit__"):
+                async with platform:
+                    response_envelope = await platform.safe_query(question_text)
+            else:
                 response_envelope = await platform.safe_query(question_text)
 
             processing_time = int((time.time() - start_time) * 1000)
@@ -540,7 +678,7 @@ class AuditProcessor:
                 self.metrics.increment_platform_error(platform_name, "query_failed")
 
                 return ProcessingResult(
-                    question_id=str(uuid.uuid4()),
+                    question_id=question_id or str(uuid.uuid4()),
                     platform=platform_name,
                     success=False,
                     processing_time_ms=processing_time,
@@ -577,7 +715,7 @@ class AuditProcessor:
             response_record = response_models.Response(
                 id=str(uuid.uuid4()),
                 audit_run_id=audit_run_id,
-                question_id=None,  # We'll need to map questions properly in a future iteration
+                question_id=question_id,
                 platform=platform_name,
                 response_text=response_text,
                 raw_response=response_envelope["response"],
@@ -600,7 +738,7 @@ class AuditProcessor:
             self.metrics.increment_successful_queries(platform_name)
 
             return ProcessingResult(
-                question_id=response_record.id,
+                question_id=question_id or response_record.id,
                 platform=platform_name,
                 success=True,
                 processing_time_ms=processing_time,
@@ -624,7 +762,7 @@ class AuditProcessor:
             self.metrics.increment_platform_error(platform_name, "processing_error")
 
             return ProcessingResult(
-                question_id=str(uuid.uuid4()),
+                question_id=question_id or str(uuid.uuid4()),
                 platform=platform_name,
                 success=False,
                 processing_time_ms=processing_time,
@@ -756,7 +894,7 @@ class AuditProcessor:
             batch_info=f"{batch_progress.batch_index}/{batch_progress.total_batches}",
         )
 
-    async def _finalize_audit_run(
+    async def _finalize_audit_run(  # noqa: C901
         self,
         audit_run: audit_models.AuditRun,
         results: List[ProcessingResult],

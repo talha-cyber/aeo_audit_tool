@@ -6,6 +6,7 @@ from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 from app.api.v1 import audits
 from app.api.v1 import monitoring as monitoring_routes
+from app.api.v1 import personas as personas_routes
 from app.api.v1 import security as security_routes
 from app.api.v1.providers import health as provider_health
 from app.core.config import settings
@@ -43,10 +44,11 @@ if settings.SENTRY_DSN:
 else:
     logger.info("Sentry not configured (SENTRY_DSN not set)")
 
-# Add CORS middleware
+# Add CORS middleware with environment-aware defaults
+allowed_origins = settings.CORS_ALLOW_ORIGINS or ["http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,6 +61,7 @@ app.add_middleware(AccessLogMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(audits.router, prefix="/api/v1")
+app.include_router(personas_routes.router, prefix="/api/v1")
 app.include_router(provider_health.router, prefix="/api/v1/providers")
 app.include_router(security_routes.router, prefix="/api/v1")
 app.include_router(monitoring_routes.router, prefix="/api/v1")
@@ -89,10 +92,10 @@ async def health_check() -> dict:
     """Health check endpoint"""
     logger.info("Health check requested")
     return {"status": "ok"}
+if settings.ENABLE_DEBUG_ENDPOINTS:
 
-
-@app.get("/debug-sentry")
-async def debug_sentry():
-    """Debug endpoint to test Sentry error reporting (remove in production)"""
-    logger.warning("Debug Sentry endpoint called - this will raise an exception")
-    raise Exception("This is a test exception for Sentry")
+    @app.get("/debug-sentry")
+    async def debug_sentry():
+        """Debug endpoint to test Sentry error reporting (development only)."""
+        logger.warning("Debug Sentry endpoint called - this will raise an exception")
+        raise Exception("This is a test exception for Sentry")

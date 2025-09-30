@@ -1,0 +1,4 @@
+# role:driver:context templates for B2B
+cfo:roi_tco:validation=How does {client_brand} prove ROI against {competitor} for a {role} during {context_stage}?
+ciso:trust_compliance:rollout=What compliance assurances reassure the {role} when adopting {client_brand}?
+vp_sales:scalability:evaluation=How does {client_brand} accelerate revenue outcomes compared to {competitor} for {role}s?

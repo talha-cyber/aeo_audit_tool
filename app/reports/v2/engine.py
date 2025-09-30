@@ -25,6 +25,7 @@ from app.models import audit as audit_models
 from app.models import response as response_models
 from app.models.report import Report
 from app.services.brand_detection.core.sentiment import SentimentAnalyzer
+from app.services.report_utils import extract_question_context
 
 from .accessibility import enhance_pdf_accessibility
 from .chassis import ReportBuilder, ReportDoc
@@ -41,18 +42,11 @@ except ImportError:
 
 from .metrics import BrandStats, aggregate_brands
 from .sections import (
+    appendix as s_appendix,
     competitive as s_competitive,
-)
-from .sections import (
     platforms as s_platforms,
-)
-from .sections import (
     recommendations as s_recommendations,
-)
-from .sections import (
     summary as s_summary,
-)
-from .sections import (
     title as s_title,
 )
 from .theme import format_date, get_theme, register_fonts
@@ -193,6 +187,7 @@ class ReportEngineV2:
             # Initialize brand statistics
             brand_stats = {brand: BrandStats(0, [], {}, {}) for brand in all_brands}
             platform_stats = {}
+            qa_entries: List[Dict[str, Any]] = []
 
             logger.info(
                 f"Processing {len(responses)} responses for {len(all_brands)} brands"
@@ -202,6 +197,7 @@ class ReportEngineV2:
             for response in responses:
                 platform = response.platform
                 brand_mentions = response.brand_mentions or {}
+                question_context = extract_question_context(response)
 
                 # Initialize platform stats if needed
                 if platform not in platform_stats:
@@ -272,6 +268,20 @@ class ReportEngineV2:
                                     response.category
                                 ] += count
 
+                # Capture Q&A context for appendix generation
+                qa_entry = {
+                    "question_id": question_context.get("question_id"),
+                    "question": question_context.get("question"),
+                    "answer": response.response_text,
+                    "provider": question_context.get("provider")
+                    or response.platform
+                    or "Unknown Provider",
+                    "category": question_context.get("category"),
+                    "question_type": question_context.get("question_type"),
+                    "platform": platform,
+                }
+                qa_entries.append(qa_entry)
+
             # Calculate platform sentiment averages
             for platform in platform_stats:
                 for brand in platform_stats[platform]["avg_sentiment"]:
@@ -304,6 +314,8 @@ class ReportEngineV2:
                 "prompt_basket_version": getattr(
                     audit_run, "prompt_basket_version", None
                 ),
+                "qa_entries": qa_entries,
+                "appendix_group_by": "provider",
             }
 
             logger.info(
@@ -465,6 +477,12 @@ class ReportEngineV2:
             self.theme, current_data, previous_data
         )
         builder.add_standard_content(recommendations_content)
+
+        # 7. Appendix (optional)
+        if current_data.get("qa_entries"):
+            builder.add_page_break()
+            appendix_content = s_appendix.build(self.theme, current_data)
+            builder.add_standard_content(appendix_content)
 
         # Build final document
         return builder.build()

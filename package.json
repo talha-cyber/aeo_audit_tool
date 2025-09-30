@@ -1,0 +1,7 @@
+{
+  "name": "aeo-audit-tool",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ]
+}

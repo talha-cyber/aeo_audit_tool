@@ -14,7 +14,7 @@ from sqlalchemy import desc, func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.database import get_db
+from app.db.session import SessionLocal
 from app.models.scheduling import (
     JobDependency,
     JobExecution,
@@ -65,8 +65,14 @@ class SchedulingRepository:
     def db(self) -> Session:
         """Get database session"""
         if self._db is None:
-            self._db = next(get_db())
+            self._db = SessionLocal()
         return self._db
+
+    @db.setter
+    def db(self, value: Optional[Session]) -> None:
+        """Allow tests to override the active database session."""
+        self._db = value
+        self._auto_commit = value is None
 
     @contextmanager
     def transaction(self):
@@ -82,7 +88,7 @@ class SchedulingRepository:
             logger.error(f"Transaction failed: {e}", exc_info=True)
             raise
         finally:
-            if self._auto_commit:
+            if self._auto_commit and self._db is not None:
                 db.close()
                 self._db = None
 

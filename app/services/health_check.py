@@ -7,16 +7,19 @@ and alerting capabilities for proactive system maintenance.
 
 import asyncio
 import time
+from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 import psutil
+import redis.asyncio as redis
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_config import get_audit_settings
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.audit_metrics import get_audit_metrics
 from app.services.platform_manager import PlatformManager
@@ -143,6 +146,7 @@ class HealthChecker:
         self._last_check = None
         self._cached_health = None
         self._cache_duration = timedelta(minutes=2)  # Cache health for 2 minutes
+        self._history: Deque[SystemHealth] = deque(maxlen=720)
 
     async def check_system_health(self, force_refresh: bool = False) -> SystemHealth:
         """
@@ -212,9 +216,10 @@ class HealthChecker:
             alert_level=alert_level,
         )
 
-        # Cache result
+        # Cache result and retain history
         self._cached_health = system_health
         self._last_check = now
+        self._history.append(system_health)
 
         logger.info(
             "System health check completed",
@@ -552,50 +557,118 @@ class HealthChecker:
             )
 
     async def _check_cache_health(self) -> ComponentHealth:
-        """Check cache system health (Redis if configured)"""
+        """Check cache system health (Redis if configured)."""
+
+        start = time.perf_counter()
+        client: Optional[redis.Redis] = None
+
         try:
-            # For now, return healthy if no cache configured
-            # TODO: Implement Redis health check when cache is added
+            client = redis.from_url(
+                f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0",
+                encoding="utf-8",
+                decode_responses=True,
+            )
+
+            await client.ping()
+            response_time = (time.perf_counter() - start) * 1000
+
+            metrics = [
+                HealthMetric(
+                    name="redis_ping_ms",
+                    value=response_time,
+                    unit="ms",
+                    threshold_warning=250,
+                    threshold_critical=1000,
+                )
+            ]
+
+            try:
+                info = await client.info(section="memory")
+                used_memory = info.get("used_memory", 0) / (1024 * 1024)
+                metrics.append(
+                    HealthMetric(
+                        name="redis_used_memory_mb",
+                        value=used_memory,
+                        unit="MB",
+                        threshold_warning=768,
+                        threshold_critical=1024,
+                    )
+                )
+            except Exception as info_error:  # pragma: no cover - optional metric
+                logger.debug("Redis memory info unavailable", error=str(info_error))
+
+            status = HealthStatus.HEALTHY
+            for metric in metrics:
+                if metric.status == HealthStatus.UNHEALTHY:
+                    status = HealthStatus.UNHEALTHY
+                    break
+                if metric.status == HealthStatus.DEGRADED and status == HealthStatus.HEALTHY:
+                    status = HealthStatus.DEGRADED
+
             return ComponentHealth(
                 name="cache",
                 component_type=ComponentType.CACHE,
-                status=HealthStatus.HEALTHY,
-                metrics=[
-                    HealthMetric(name="cache_availability", value=1, unit="boolean")
-                ],
+                status=status,
+                response_time_ms=response_time,
+                metrics=metrics,
             )
 
-        except Exception as e:
+        except Exception as exc:
             return ComponentHealth(
                 name="cache",
                 component_type=ComponentType.CACHE,
                 status=HealthStatus.UNHEALTHY,
-                error_message=f"Cache error: {str(e)}",
+                error_message=f"Cache error: {str(exc)}",
             )
+        finally:
+            if client is not None and hasattr(client, "aclose"):
+                try:
+                    await client.aclose()  # type: ignore[attr-defined]
+                except Exception as close_error:  # pragma: no cover - defensive log
+                    logger.debug("Failed to close redis client", error=str(close_error))
 
     async def _check_queue_health(self) -> ComponentHealth:
-        """Check Celery queue health"""
+        """Check Celery queue health."""
+
         try:
-            # Basic check - if we can import celery app, assume it's healthy
-            # TODO: Implement proper Celery health check
             from app.core.celery_app import celery_app
+        except Exception as exc:
+            return ComponentHealth(
+                name="queue",
+                component_type=ComponentType.QUEUE,
+                status=HealthStatus.UNHEALTHY,
+                error_message=f"Celery app unavailable: {str(exc)}",
+            )
 
-            # Try to get basic info
-            inspect = celery_app.control.inspect()
-            active_tasks = inspect.active()
+        start = time.perf_counter()
 
-            task_count = 0
-            if active_tasks:
-                task_count = sum(len(tasks) for tasks in active_tasks.values())
+        try:
+            ping_result = await asyncio.to_thread(celery_app.control.ping, timeout=1.0)
+            worker_count = len(ping_result) if ping_result else 0
+
+            def _active_tasks() -> Dict[str, List[Any]]:
+                snapshot = celery_app.control.inspect().active() or {}
+                return {worker: tasks or [] for worker, tasks in snapshot.items()}
+
+            active = await asyncio.to_thread(_active_tasks)
+            total_active = sum(len(tasks) for tasks in active.values())
 
             metrics = [
                 HealthMetric(
+                    name="worker_count",
+                    value=worker_count,
+                    unit="workers",
+                    status=HealthStatus.HEALTHY
+                    if worker_count > 0
+                    else HealthStatus.UNHEALTHY,
+                ),
+                HealthMetric(
                     name="active_tasks",
-                    value=task_count,
-                    unit="count",
+                    value=total_active,
+                    unit="tasks",
                     threshold_warning=50,
-                    threshold_critical=100,
-                )
+                    threshold_critical=150,
+                ),
             ]
 
             status = HealthStatus.HEALTHY
@@ -603,25 +676,25 @@ class HealthChecker:
                 if metric.status == HealthStatus.UNHEALTHY:
                     status = HealthStatus.UNHEALTHY
                     break
-                elif (
-                    metric.status == HealthStatus.DEGRADED
-                    and status == HealthStatus.HEALTHY
-                ):
+                if metric.status == HealthStatus.DEGRADED and status == HealthStatus.HEALTHY:
                     status = HealthStatus.DEGRADED
+
+            response_time = (time.perf_counter() - start) * 1000
 
             return ComponentHealth(
                 name="queue",
                 component_type=ComponentType.QUEUE,
                 status=status,
+                response_time_ms=response_time,
                 metrics=metrics,
             )
 
-        except Exception as e:
+        except Exception as exc:
             return ComponentHealth(
                 name="queue",
                 component_type=ComponentType.QUEUE,
                 status=HealthStatus.UNHEALTHY,
-                error_message=f"Queue error: {str(e)}",
+                error_message=f"Queue error: {str(exc)}",
             )
 
     def _determine_overall_status(
@@ -716,9 +789,17 @@ class HealthChecker:
         return None
 
     async def get_health_history(self, hours: int = 24) -> List[Dict[str, Any]]:
-        """Get health check history (placeholder for future implementation)"""
-        # TODO: Implement health history storage and retrieval
-        return []
+        """Get recent health check history within the requested window."""
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        history: List[Dict[str, Any]] = []
+
+        for record in reversed(self._history):
+            if record.timestamp < cutoff:
+                break
+            history.append(record.to_dict())
+
+        return history
 
 
 # === Global Health Checker Instance ===

@@ -5,8 +5,10 @@ Defines the common interface that all trigger types must implement.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+
+import pytz
 
 from app.utils.logger import get_logger
 
@@ -46,8 +48,22 @@ class BaseTrigger(ABC):
         Args:
             config: Trigger-specific configuration dictionary
         """
-        self.config = config
-        self.timezone = config.get("timezone", "UTC")
+        # Work with a shallow copy so we can add defaults without mutating caller input
+        self.config: Dict[str, Any] = dict(config)
+
+        tz_name = self.config.get("timezone", "UTC")
+        try:
+            timezone_obj = pytz.timezone(tz_name)
+        except Exception as exc:  # pragma: no cover - configuration guardrail
+            raise TriggerValidationError(f"Invalid timezone: {tz_name}") from exc
+
+        self.timezone = timezone_obj
+        self.timezone_name = getattr(timezone_obj, "zone", tz_name)
+
+        # Common scheduling tolerances
+        self.misfire_grace_time = int(self.config.get("misfire_grace_time", 3600))
+        self.config.setdefault("timezone", self.timezone_name)
+        self.config.setdefault("misfire_grace_time", self.misfire_grace_time)
 
         # Validate configuration during initialization
         self.validate_config()
@@ -79,15 +95,12 @@ class BaseTrigger(ABC):
         """
         pass
 
-    @abstractmethod
     def get_trigger_info(self) -> Dict[str, Any]:
-        """
-        Get human-readable trigger information.
-
-        Returns:
-            Dictionary with trigger description and metadata
-        """
-        pass
+        """Default trigger metadata implementation."""
+        return {
+            "type": self.config.get("trigger_type", "unknown"),
+            "config": self.config,
+        }
 
     def should_skip_run(
         self, scheduled_time: datetime, current_time: Optional[datetime] = None
@@ -108,10 +121,11 @@ class BaseTrigger(ABC):
             True if this run should be skipped
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = self.now()
 
-        # Default implementation: skip if more than 1 hour late
-        max_delay_seconds = self.config.get("max_misfire_delay", 3600)
+        max_delay_seconds = self.config.get(
+            "max_misfire_delay", self.misfire_grace_time
+        )
         delay_seconds = (current_time - scheduled_time).total_seconds()
 
         if delay_seconds > max_delay_seconds:
@@ -137,10 +151,8 @@ class BaseTrigger(ABC):
             Timezone-aware UTC datetime
         """
         if dt.tzinfo is None:
-            # Assume UTC if no timezone info
             dt = dt.replace(tzinfo=timezone.utc)
-        elif dt.tzinfo != timezone.utc:
-            # Convert to UTC
+        else:
             dt = dt.astimezone(timezone.utc)
 
         return dt
@@ -194,7 +206,6 @@ class BaseTrigger(ABC):
 
         if isinstance(value, str):
             try:
-                # Try to parse ISO format
                 value = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError as e:
                 raise TriggerValidationError(
@@ -206,6 +217,10 @@ class BaseTrigger(ABC):
             )
 
         return self.normalize_datetime(value)
+
+    def now(self) -> datetime:
+        """Return the current UTC time (safe for monkeypatching in tests)."""
+        return datetime.now(timezone.utc)
 
     def validate_positive_integer(
         self, key: str, required: bool = False, min_value: int = 1

@@ -73,7 +73,8 @@ def upgrade() -> None:
     op.add_column("client", sa.Column("product_type", sa.String(), nullable=True))
     op.add_column("client", sa.Column("competitors", sa.JSON(), nullable=True))
 
-    # The original autogen attempted to drop this index after changing type; keep it dropped
+    # The original autogen attempted to drop this index after changing type.
+    # Keep the index dropped to preserve compatibility with the new schema.
     op.drop_index("ix_client_id", table_name="client")
 
     op.alter_column(

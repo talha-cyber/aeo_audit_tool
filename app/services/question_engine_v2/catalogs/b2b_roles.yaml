@@ -1,0 +1,16 @@
+# B2B Roles catalog (placeholder values)
+
+cfo:
+  label: "Chief Financial Officer"
+  description: "Economic buyer focused on ROI and budgets."
+  default_context_stage: "negotiation"
+
+ciso:
+  label: "Chief Information Security Officer"
+  description: "Security leader concerned with risk and compliance."
+  default_context_stage: "validation"
+
+vp_sales:
+  label: "VP of Sales"
+  description: "Revenue leader assessing enablement impact."
+  default_context_stage: "evaluation"

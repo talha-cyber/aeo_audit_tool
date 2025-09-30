@@ -33,16 +33,17 @@ from app.services.scheduling.policies.retry import ExponentialBackoffRetry
 
 
 @pytest.fixture
-async def full_scheduler_system():
+def full_scheduler_system():
     """Create a complete scheduler system for integration testing"""
     # Mock external dependencies
     mock_db_session = Mock()
     mock_celery_app = Mock()
 
     # Create components
-    repository = SchedulingRepository(db=mock_db_session)
+    repository = Mock(spec=SchedulingRepository)
+    repository._db = mock_db_session
     execution_manager = ExecutionManager(repository)
-    trigger_factory = TriggerFactory()
+    trigger_factory = Mock(spec=TriggerFactory)
 
     # Create scheduler engine
     scheduler = SchedulerEngine(

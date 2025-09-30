@@ -42,24 +42,38 @@ class DependencyTrigger(BaseTrigger):
         """Initialize dependency trigger"""
         super().__init__(config)
 
-        # Parse dependency configuration
-        self.depends_on_jobs = self.get_config_value("depends_on", required=True)
-        self.dependency_type = DependencyType(
-            self.get_config_value("dependency_type", default="success")
+        raw_depends = self.get_config_value("depends_on", required=True)
+        self.depends_on_jobs = list(raw_depends)
+        dep_type_raw = str(self.get_config_value("dependency_type", default="success")).lower()
+        self.dependency_type = DependencyType(dep_type_raw)
+        self.delay_seconds = int(self.get_config_value("delay_seconds", default=0))
+
+        self.require_all = bool(self.get_config_value("require_all", default=True))
+        self.timeout_seconds = int(
+            self.get_config_value("timeout_seconds", default=86400)
         )
-        self.delay_seconds = self.get_config_value("delay_seconds", default=0)
 
-        # Advanced dependency options
-        self.require_all = self.get_config_value(
-            "require_all", default=True
-        )  # AND vs OR logic
-        self.timeout_seconds = self.get_config_value(
-            "timeout_seconds", default=86400
-        )  # 24 hours
+        self.config["depends_on"] = self.depends_on_jobs
+        self.config["dependency_type"] = self.dependency_type.value
+        self.config["delay_seconds"] = self.delay_seconds
+        self.config["require_all"] = self.require_all
+        self.config["timeout_seconds"] = self.timeout_seconds
 
-        # Internal state
-        self._dependency_status: Dict[str, Optional[bool]] = {}
+        self.misfire_grace_time = int(
+            self.get_config_value("misfire_grace_time", default=self.misfire_grace_time)
+        )
+        self.config["misfire_grace_time"] = self.misfire_grace_time
+
+        self._dependency_status: Dict[str, Optional[bool]] = {
+            job_id: None for job_id in self.depends_on_jobs
+        }
+        self._dependency_completion_times: Dict[str, Optional[datetime]] = {
+            job_id: None for job_id in self.depends_on_jobs
+        }
         self._last_check: Optional[datetime] = None
+
+    def now(self) -> datetime:  # type: ignore[override]
+        return datetime.now(timezone.utc)
 
     def validate_config(self) -> None:
         """Validate dependency trigger configuration"""
@@ -77,7 +91,9 @@ class DependencyTrigger(BaseTrigger):
                 )
 
         # Validate dependency type
-        dependency_type = self.get_config_value("dependency_type", default="success")
+        dependency_type = str(
+            self.get_config_value("dependency_type", default="success")
+        ).lower()
         if dependency_type not in [dt.value for dt in DependencyType]:
             valid_types = [dt.value for dt in DependencyType]
             raise TriggerValidationError(
@@ -134,7 +150,7 @@ class DependencyTrigger(BaseTrigger):
                 )
 
                 # Check for timeout
-                now = datetime.now(timezone.utc)
+                now = self.now()
                 if (
                     self._last_check
                     and (now - self._last_check).total_seconds() > self.timeout_seconds
@@ -155,7 +171,7 @@ class DependencyTrigger(BaseTrigger):
                 await self._get_earliest_dependency_completion_time()
             )
             if earliest_completion_time is None:
-                earliest_completion_time = datetime.now(timezone.utc)
+                earliest_completion_time = self.now()
 
             run_time = earliest_completion_time + timedelta(seconds=self.delay_seconds)
 
@@ -190,10 +206,7 @@ class DependencyTrigger(BaseTrigger):
         # This is a simplified implementation
         # In a real system, this would query the job execution history
 
-        self._last_check = datetime.now(timezone.utc)
-
-        # TODO: Implement actual dependency checking by querying job execution records
-        # For now, return False to indicate dependencies are not yet implemented
+        self._last_check = self.now()
 
         logger.debug(
             "Checking job dependencies",
@@ -202,26 +215,39 @@ class DependencyTrigger(BaseTrigger):
             require_all=self.require_all,
         )
 
-        # Placeholder implementation - in real system would check database
         satisfied_count = 0
-
         for job_id in self.depends_on_jobs:
-            # Query job execution status from database
-            # For now, assume not satisfied
-            job_satisfied = False  # TODO: Implement actual check
-
-            if job_satisfied:
+            status = self._dependency_status.get(job_id)
+            if status:
                 satisfied_count += 1
-                self._dependency_status[job_id] = True
-            else:
-                self._dependency_status[job_id] = False
 
         if self.require_all:
-            # All dependencies must be satisfied
             return satisfied_count == len(self.depends_on_jobs)
-        else:
-            # At least one dependency must be satisfied
-            return satisfied_count > 0
+        return satisfied_count > 0
+
+    def update_dependency_status(
+        self,
+        job_id: str,
+        status: Optional[bool],
+        *,
+        completed_at: Optional[datetime] = None,
+    ) -> None:
+        """Update dependency completion state from scheduler events."""
+
+        if job_id not in self._dependency_status:
+            logger.debug("Ignoring dependency update for unknown job", job_id=job_id)
+            return
+
+        self._dependency_status[job_id] = status
+
+        if status:
+            completion_time = completed_at or self.now()
+            self._dependency_completion_times[job_id] = self.normalize_datetime(
+                completion_time
+            )
+        elif status is False:
+            # Failure resets completion time to ensure retries wait for new run
+            self._dependency_completion_times[job_id] = None
 
     async def _get_earliest_dependency_completion_time(self) -> Optional[datetime]:
         """
@@ -230,9 +256,29 @@ class DependencyTrigger(BaseTrigger):
         Returns:
             Earliest completion time or None if no dependencies completed
         """
-        # TODO: Implement by querying job execution completion times
-        # For now, return current time as placeholder
-        return datetime.now(timezone.utc)
+        satisfied_jobs = [
+            job_id for job_id, status in self._dependency_status.items() if status
+        ]
+
+        if not satisfied_jobs:
+            return None
+
+        completion_times = [
+            self._dependency_completion_times.get(job_id)
+            for job_id in satisfied_jobs
+        ]
+
+        filtered_times = [ct for ct in completion_times if ct is not None]
+        if not filtered_times:
+            return None
+
+        earliest = min(filtered_times)
+        logger.debug(
+            "Resolved earliest dependency completion",
+            depends_on=self.depends_on_jobs,
+            earliest=earliest.isoformat(),
+        )
+        return earliest
 
     def get_trigger_info(self) -> Dict[str, Any]:
         """Get human-readable trigger information"""
@@ -323,20 +369,16 @@ class DependencyTrigger(BaseTrigger):
                 )
                 return True
 
-        # Use shorter grace time for dependencies since timing is more flexible
-        grace_time = self.get_config_value(
-            "misfire_grace_time", default=1800
-        )  # 30 minutes
         delay_seconds = (current_time - scheduled_time).total_seconds()
 
-        if delay_seconds > grace_time:
+        if delay_seconds > self.misfire_grace_time:
             logger.info(
                 "Skipping dependency trigger run due to excessive delay",
                 depends_on=self.depends_on_jobs,
                 scheduled_time=scheduled_time.isoformat(),
                 current_time=current_time.isoformat(),
                 delay_seconds=delay_seconds,
-                grace_time=grace_time,
+                grace_time=self.misfire_grace_time,
             )
             return True
 

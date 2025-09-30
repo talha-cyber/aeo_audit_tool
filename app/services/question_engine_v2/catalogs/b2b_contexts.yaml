@@ -1,0 +1,21 @@
+# B2B Decision contexts (placeholder values)
+
+evaluation:
+  label: "Evaluation"
+  priority: 0.8
+
+validation:
+  label: "Validation"
+  priority: 1.0
+
+negotiation:
+  label: "Negotiation"
+  priority: 0.9
+
+rollout:
+  label: "Rollout"
+  priority: 0.7
+
+expansion:
+  label: "Expansion"
+  priority: 0.8
