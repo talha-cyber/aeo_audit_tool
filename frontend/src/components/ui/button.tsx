@@ -2,6 +2,7 @@
 
 import clsx from 'clsx';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { ButtonHTMLAttributes } from 'react';
 
 type ButtonVariant = 'primary' | 'ghost';
@@ -35,7 +36,7 @@ function buildClassName(variant: ButtonVariant, size: ButtonSize, className?: st
 export function Button({ variant = 'primary', size = 'md', className, href, type, ...props }: ButtonProps) {
   if (href) {
     return (
-      <Link href={href} className={buildClassName(variant, size, className)}>
+      <Link href={href as Route} className={buildClassName(variant, size, className)}>
         {props.children}
       </Link>
     );

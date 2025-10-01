@@ -44,7 +44,9 @@ class DependencyTrigger(BaseTrigger):
 
         raw_depends = self.get_config_value("depends_on", required=True)
         self.depends_on_jobs = list(raw_depends)
-        dep_type_raw = str(self.get_config_value("dependency_type", default="success")).lower()
+        dep_type_raw = str(
+            self.get_config_value("dependency_type", default="success")
+        ).lower()
         self.dependency_type = DependencyType(dep_type_raw)
         self.delay_seconds = int(self.get_config_value("delay_seconds", default=0))
 
@@ -264,8 +266,7 @@ class DependencyTrigger(BaseTrigger):
             return None
 
         completion_times = [
-            self._dependency_completion_times.get(job_id)
-            for job_id in satisfied_jobs
+            self._dependency_completion_times.get(job_id) for job_id in satisfied_jobs
         ]
 
         filtered_times = [ct for ct in completion_times if ct is not None]

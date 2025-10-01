@@ -39,10 +39,10 @@ export function NewAuditRunDrawer() {
   const { isNewAuditDrawerOpen, closeNewAuditDrawer } = useUIStore();
   const [selectedScenario, setSelectedScenario] = useState<typeof SCENARIOS[number] | null>(SCENARIOS[0]);
   const [questionCount, setQuestionCount] = useState<number>(SCENARIOS[0].defaultQuestionCount);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(SCENARIOS[0].platforms);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([...SCENARIOS[0].platforms]);
   const launchTestRun = useLaunchTestRun();
 
-  const isUsingMocks = useMemo(() => process.env.NEXT_PUBLIC_USE_MOCKS !== 'false', []);
+  const isUsingMocks = useMemo(() => process.env.NEXT_PUBLIC_USE_MOCKS === 'true', []);
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) =>
@@ -55,7 +55,7 @@ export function NewAuditRunDrawer() {
     setSelectedScenario(scenario);
     if (scenario) {
       setQuestionCount(scenario.defaultQuestionCount);
-      setSelectedPlatforms(scenario.platforms);
+      setSelectedPlatforms([...scenario.platforms]);
     }
   };
 

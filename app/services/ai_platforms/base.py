@@ -313,7 +313,9 @@ class BasePlatform(ABC):
 
         try:
             if self._uses_httpx:
-                response = await self.session.post(self._get_endpoint_url(), json=payload)
+                response = await self.session.post(
+                    self._get_endpoint_url(), json=payload
+                )
                 response_data = response.json()
                 status = response.status_code
                 headers = response.headers

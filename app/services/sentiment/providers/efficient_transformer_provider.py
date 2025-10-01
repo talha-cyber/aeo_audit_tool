@@ -6,20 +6,18 @@ batch processing, and efficient inference strategies for running locally at mini
 """
 
 import asyncio
-import os
-import pickle
 import hashlib
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Union
+import pickle
 import warnings
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import torch
-import torch.nn as nn
 from transformers import (
-    AutoTokenizer,
     AutoModelForSequenceClassification,
-    BitsAndBytesConfig
+    AutoTokenizer,
+    BitsAndBytesConfig,
 )
 
 from app.utils.logger import get_logger
@@ -53,7 +51,9 @@ class ModelCache:
         key_data = f"{model_name}_{quantization}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
-    def get_cached_model_path(self, model_name: str, quantization: bool = False) -> Optional[Path]:
+    def get_cached_model_path(
+        self, model_name: str, quantization: bool = False
+    ) -> Optional[Path]:
         """Check if model is cached locally"""
         cache_key = self._get_cache_key(model_name, quantization)
         cache_path = self.cache_dir / cache_key
@@ -62,7 +62,9 @@ class ModelCache:
             return cache_path
         return None
 
-    def cache_model(self, model_name: str, model, tokenizer, quantization: bool = False):
+    def cache_model(
+        self, model_name: str, model, tokenizer, quantization: bool = False
+    ):
         """Cache model and tokenizer to disk"""
         try:
             cache_key = self._get_cache_key(model_name, quantization)
@@ -77,7 +79,7 @@ class ModelCache:
             metadata = {
                 "model_name": model_name,
                 "quantization": quantization,
-                "cached_at": torch.utils.data.datetime.datetime.now().isoformat()
+                "cached_at": torch.utils.data.datetime.datetime.now().isoformat(),
             }
 
             with open(cache_path / "metadata.pkl", "wb") as f:
@@ -105,12 +107,12 @@ class ModelCache:
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=torch.float16,
                     bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4"
+                    bnb_4bit_quant_type="nf4",
                 )
                 model = AutoModelForSequenceClassification.from_pretrained(
                     cache_path / "model",
                     quantization_config=quantization_config,
-                    device_map="auto"
+                    device_map="auto",
                 )
             else:
                 model = AutoModelForSequenceClassification.from_pretrained(
@@ -143,26 +145,26 @@ class EfficientTransformerProvider(SentimentProvider):
             "model": "papluca/xlm-roberta-base-language-detection",  # Very small
             "description": "Minimal model for basic sentiment",
             "memory_mb": 50,
-            "speed": "very_fast"
+            "speed": "very_fast",
         },
         "small": {
             "model": "cardiffnlp/twitter-roberta-base-sentiment-latest",
             "description": "Good balance of accuracy and speed",
             "memory_mb": 150,
-            "speed": "fast"
+            "speed": "fast",
         },
         "efficient": {
             "model": "microsoft/DialoGPT-medium",
             "description": "Medium accuracy with good efficiency",
             "memory_mb": 300,
-            "speed": "medium"
+            "speed": "medium",
         },
         "accurate": {
             "model": "nlptown/bert-base-multilingual-uncased-sentiment",
             "description": "High accuracy, multilingual",
             "memory_mb": 500,
-            "speed": "slow"
-        }
+            "speed": "slow",
+        },
     }
 
     def __init__(
@@ -171,11 +173,10 @@ class EfficientTransformerProvider(SentimentProvider):
         quantization: str = "none",  # none, 8bit, 4bit
         device: str = "auto",
         max_length: int = 256,  # Reduced for efficiency
-        batch_size: int = 8,     # Smaller batches for memory efficiency
+        batch_size: int = 8,  # Smaller batches for memory efficiency
         enable_caching: bool = True,
-        cache_dir: str = "sentiment_model_cache"
+        cache_dir: str = "sentiment_model_cache",
     ):
-
         if model_size not in self.COST_EFFECTIVE_MODELS:
             model_size = "small"
 
@@ -183,8 +184,7 @@ class EfficientTransformerProvider(SentimentProvider):
         model_name = self.model_config["model"]
 
         super().__init__(
-            SentimentMethod.TRANSFORMER,
-            f"EfficientTransformer({model_size})"
+            SentimentMethod.TRANSFORMER, f"EfficientTransformer({model_size})"
         )
 
         self.model_name = model_name
@@ -225,7 +225,9 @@ class EfficientTransformerProvider(SentimentProvider):
         """Initialize with cost optimization strategies"""
         try:
             logger.info(f"Initializing efficient transformer: {self.model_name}")
-            logger.info(f"Configuration: size={self.model_size}, quantization={self.quantization}")
+            logger.info(
+                f"Configuration: size={self.model_size}, quantization={self.quantization}"
+            )
 
             # Setup device with cost considerations
             self.device_obj = self._setup_cost_effective_device()
@@ -233,8 +235,7 @@ class EfficientTransformerProvider(SentimentProvider):
             # Try to load from cache first
             if self.cache:
                 model, tokenizer = self.cache.load_cached_model(
-                    self.model_name,
-                    self.quantization != "none"
+                    self.model_name, self.quantization != "none"
                 )
                 if model and tokenizer:
                     self.model = model
@@ -254,8 +255,8 @@ class EfficientTransformerProvider(SentimentProvider):
                         self.model_name,
                         self.model,
                         self.tokenizer,
-                        self.quantization != "none"
-                    )
+                        self.quantization != "none",
+                    ),
                 )
 
             await self._setup_model()
@@ -263,13 +264,11 @@ class EfficientTransformerProvider(SentimentProvider):
             # Log resource usage
             self._log_resource_usage()
 
-            logger.info(f"Efficient transformer initialized successfully")
+            logger.info("Efficient transformer initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize efficient transformer: {e}")
-            raise ProviderConfigurationError(
-                self.name, f"Initialization failed: {e}"
-            )
+            raise ProviderConfigurationError(self.name, f"Initialization failed: {e}")
 
     def _setup_cost_effective_device(self) -> torch.device:
         """Setup device with cost optimization"""
@@ -295,8 +294,7 @@ class EfficientTransformerProvider(SentimentProvider):
 
         # Load tokenizer
         self.tokenizer = await loop.run_in_executor(
-            None,
-            lambda: AutoTokenizer.from_pretrained(self.model_name)
+            None, lambda: AutoTokenizer.from_pretrained(self.model_name)
         )
 
         # Load model with quantization if requested
@@ -305,7 +303,7 @@ class EfficientTransformerProvider(SentimentProvider):
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
+                bnb_4bit_quant_type="nf4",
             )
             self.model = await loop.run_in_executor(
                 None,
@@ -313,17 +311,15 @@ class EfficientTransformerProvider(SentimentProvider):
                     self.model_name,
                     quantization_config=quantization_config,
                     device_map="auto",
-                    torch_dtype=torch.float16
-                )
+                    torch_dtype=torch.float16,
+                ),
             )
         elif self.quantization == "8bit":
             self.model = await loop.run_in_executor(
                 None,
                 lambda: AutoModelForSequenceClassification.from_pretrained(
-                    self.model_name,
-                    load_in_8bit=True,
-                    device_map="auto"
-                )
+                    self.model_name, load_in_8bit=True, device_map="auto"
+                ),
             )
         else:
             # Standard loading
@@ -331,8 +327,10 @@ class EfficientTransformerProvider(SentimentProvider):
                 None,
                 lambda: AutoModelForSequenceClassification.from_pretrained(
                     self.model_name,
-                    torch_dtype=torch.float16 if self.device_obj.type == "cuda" else torch.float32
-                )
+                    torch_dtype=torch.float16
+                    if self.device_obj.type == "cuda"
+                    else torch.float32,
+                ),
             )
 
     async def _setup_model(self):
@@ -366,11 +364,15 @@ class EfficientTransformerProvider(SentimentProvider):
             param_count = sum(p.numel() for p in self.model.parameters())
 
             if self.quantization == "4bit":
-                self.memory_usage_mb = param_count * 0.5 / (1024 * 1024)  # 4-bit = 0.5 bytes
+                self.memory_usage_mb = (
+                    param_count * 0.5 / (1024 * 1024)
+                )  # 4-bit = 0.5 bytes
             elif self.quantization == "8bit":
                 self.memory_usage_mb = param_count / (1024 * 1024)  # 8-bit = 1 byte
             else:
-                self.memory_usage_mb = param_count * 4 / (1024 * 1024)  # float32 = 4 bytes
+                self.memory_usage_mb = (
+                    param_count * 4 / (1024 * 1024)
+                )  # float32 = 4 bytes
 
             logger.info(f"Estimated memory usage: {self.memory_usage_mb:.1f} MB")
             logger.info(f"Model parameters: {param_count:,}")
@@ -441,7 +443,7 @@ class EfficientTransformerProvider(SentimentProvider):
         confidence = torch.max(scores).item()
 
         # Map to polarity
-        if hasattr(self.model.config, 'id2label'):
+        if hasattr(self.model.config, "id2label"):
             predicted_label = self.model.config.id2label[predicted_class_id]
         else:
             predicted_label = f"LABEL_{predicted_class_id}"
@@ -459,7 +461,8 @@ class EfficientTransformerProvider(SentimentProvider):
         # Efficiency metadata
         avg_inference_time = (
             self.total_inference_time / self.inference_count
-            if self.inference_count > 0 else 0
+            if self.inference_count > 0
+            else 0
         )
 
         metadata = {
@@ -473,7 +476,7 @@ class EfficientTransformerProvider(SentimentProvider):
             "avg_inference_time": avg_inference_time,
             "inference_count": self.inference_count,
             "text_truncated": len(text) > self.max_length,
-            "cost_optimization": True
+            "cost_optimization": True,
         }
 
         return SentimentResult(
@@ -503,7 +506,7 @@ class EfficientTransformerProvider(SentimentProvider):
 
             # Process in optimized batches
             for i in range(0, len(texts), self.batch_size):
-                batch_texts = texts[i:i + self.batch_size]
+                batch_texts = texts[i : i + self.batch_size]
                 batch_results = await self._process_efficient_batch(batch_texts, i)
                 results.extend(batch_results)
 
@@ -585,7 +588,8 @@ class EfficientTransformerProvider(SentimentProvider):
         """Get cost and efficiency metrics"""
         avg_inference_time = (
             self.total_inference_time / self.inference_count
-            if self.inference_count > 0 else 0
+            if self.inference_count > 0
+            else 0
         )
 
         return {
@@ -596,10 +600,11 @@ class EfficientTransformerProvider(SentimentProvider):
             "total_inference_time": self.total_inference_time,
             "avg_inference_time": avg_inference_time,
             "cost_per_inference": avg_inference_time * 0.0001,  # Estimated cost
-            "efficiency_score": 1.0 / (self.memory_usage_mb * avg_inference_time + 0.01),
+            "efficiency_score": 1.0
+            / (self.memory_usage_mb * avg_inference_time + 0.01),
             "device": str(self.device_obj),
             "batch_size": self.batch_size,
-            "max_length": self.max_length
+            "max_length": self.max_length,
         }
 
     def supports_language(self, language: str) -> bool:
@@ -625,15 +630,17 @@ class EfficientTransformerProvider(SentimentProvider):
         cost_metrics = self.get_cost_metrics()
         model_info = self.model_config.copy()
 
-        base_capabilities.update({
-            "model_type": "efficient_transformer",
-            "cost_optimized": True,
-            "quantization_support": True,
-            "local_inference": True,
-            "cloud_free": True,
-            **model_info,
-            **cost_metrics
-        })
+        base_capabilities.update(
+            {
+                "model_type": "efficient_transformer",
+                "cost_optimized": True,
+                "quantization_support": True,
+                "local_inference": True,
+                "cloud_free": True,
+                **model_info,
+                **cost_metrics,
+            }
+        )
 
         return base_capabilities
 
@@ -641,7 +648,7 @@ class EfficientTransformerProvider(SentimentProvider):
 # Factory function for easy model creation
 def create_cost_effective_sentiment_provider(
     cost_preference: str = "balanced",  # ultra_low, low, balanced, high_accuracy
-    **kwargs
+    **kwargs,
 ) -> EfficientTransformerProvider:
     """
     Factory function to create cost-effective sentiment providers.
@@ -659,26 +666,26 @@ def create_cost_effective_sentiment_provider(
             "model_size": "ultra_small",
             "quantization": "4bit",
             "batch_size": 4,
-            "max_length": 128
+            "max_length": 128,
         },
         "low": {
             "model_size": "small",
             "quantization": "8bit",
             "batch_size": 8,
-            "max_length": 256
+            "max_length": 256,
         },
         "balanced": {
             "model_size": "small",
             "quantization": "none",
             "batch_size": 16,
-            "max_length": 512
+            "max_length": 512,
         },
         "high_accuracy": {
             "model_size": "accurate",
             "quantization": "none",
             "batch_size": 32,
-            "max_length": 512
-        }
+            "max_length": 512,
+        },
     }
 
     config = configs.get(cost_preference, configs["balanced"])

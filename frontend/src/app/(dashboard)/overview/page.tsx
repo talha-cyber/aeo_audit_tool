@@ -11,11 +11,16 @@ export default function OverviewPage() {
   const { data: insights = [] } = useInsights();
 
   const averageHealth = useMemo(() => {
-    if (!summaries.length) {
-      return 0;
+    const values = summaries
+      .map((summary) => summary.healthScore)
+      .filter((value): value is number => typeof value === 'number');
+
+    if (!values.length) {
+      return null;
     }
-    const total = summaries.reduce((acc, summary) => acc + summary.healthScore, 0);
-    return Math.round(total / summaries.length);
+
+    const total = values.reduce((acc, value) => acc + value, 0);
+    return total / values.length;
   }, [summaries]);
 
   return (

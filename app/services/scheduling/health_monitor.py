@@ -84,7 +84,9 @@ class SystemHealthChecker:
                     "memory_available_mb": None,
                     "disk_percent": None,
                     "disk_free_gb": None,
-                    "load_average_1m": os.getloadavg()[0] if hasattr(os, "getloadavg") else 0.0,
+                    "load_average_1m": os.getloadavg()[0]
+                    if hasattr(os, "getloadavg")
+                    else 0.0,
                     "python_version": sys.version,
                     "note": "psutil not installed; metrics unavailable",
                 }

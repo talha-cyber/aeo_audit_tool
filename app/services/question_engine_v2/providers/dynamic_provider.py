@@ -9,8 +9,8 @@ from app.services.question_engine_v2.providers.base import (
     BaseProviderV2,
     ProviderExecutionContext,
 )
-from app.services.question_engine_v2.schemas import DynamicProviderOptions
 from app.services.question_engine_v2.router import LLMRouter
+from app.services.question_engine_v2.schemas import DynamicProviderOptions
 from app.utils.logger import get_logger
 
 
@@ -20,7 +20,9 @@ class DynamicProviderV2(BaseProviderV2):
     name = "dynamic_provider_v2"
     provider_key = "dynamic"
 
-    def __init__(self, options: DynamicProviderOptions | None = None, router: Any | None = None) -> None:
+    def __init__(
+        self, options: DynamicProviderOptions | None = None, router: Any | None = None
+    ) -> None:
         super().__init__()
         self.options = options or DynamicProviderOptions()
         self.logger = get_logger(__name__)
@@ -54,7 +56,9 @@ class DynamicProviderV2(BaseProviderV2):
             )
         except Exception as exc:
             self.logger.error(
-                "Dynamic provider failed", audit_run=str(context.request.audit_run_id), error=str(exc)
+                "Dynamic provider failed",
+                audit_run=str(context.request.audit_run_id),
+                error=str(exc),
             )
             return [], {"error": str(exc)}
 

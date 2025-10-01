@@ -5,8 +5,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 from app.api.v1 import audits
+from app.api.v1 import dashboard as dashboard_routes
 from app.api.v1 import monitoring as monitoring_routes
-from app.api.v1 import personas as personas_routes
 from app.api.v1 import security as security_routes
 from app.api.v1.providers import health as provider_health
 from app.core.config import settings
@@ -61,7 +61,7 @@ app.add_middleware(AccessLogMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(audits.router, prefix="/api/v1")
-app.include_router(personas_routes.router, prefix="/api/v1")
+app.include_router(dashboard_routes.router, prefix="/api/v1")
 app.include_router(provider_health.router, prefix="/api/v1/providers")
 app.include_router(security_routes.router, prefix="/api/v1")
 app.include_router(monitoring_routes.router, prefix="/api/v1")
@@ -92,6 +92,8 @@ async def health_check() -> dict:
     """Health check endpoint"""
     logger.info("Health check requested")
     return {"status": "ok"}
+
+
 if settings.ENABLE_DEBUG_ENDPOINTS:
 
     @app.get("/debug-sentry")

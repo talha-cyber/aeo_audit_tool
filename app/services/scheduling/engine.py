@@ -225,15 +225,23 @@ class SchedulerEngine:
             # Validate trigger configuration
             trigger = self.trigger_factory.create_trigger(job_def.trigger_config)
 
+            # Build job configuration envelope
+            job_config = {
+                "payload": job_def.job_data,
+            }
+
+            if job_def.metadata:
+                job_config["metadata"] = job_def.metadata
+
             # Create job record
-            job_data = {
+            job_record = {
                 "job_id": str(uuid.uuid4()),
                 "name": job_def.name,
                 "description": job_def.description,
                 "job_type": job_def.job_type,
                 "trigger_type": TriggerType(job_def.trigger_config["trigger_type"]),
                 "trigger_config": job_def.trigger_config,
-                "job_data": job_def.job_data,
+                "job_data": job_config,
                 "status": ScheduledJobStatus.ACTIVE,
                 "priority": job_def.priority,
                 "timeout_seconds": job_def.timeout_seconds,
@@ -247,10 +255,10 @@ class SchedulerEngine:
 
             # Calculate initial next run time
             next_run_time = await trigger.get_next_run_time(None)
-            job_data["next_run_time"] = next_run_time
+            job_record["next_run_time"] = next_run_time
 
             # Create job in database
-            job = self.repository.create_job(job_data)
+            job = self.repository.create_job(job_record)
 
             self._stats["jobs_scheduled"] += 1
 

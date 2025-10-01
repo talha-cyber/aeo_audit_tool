@@ -170,7 +170,7 @@ Concurrent execution: asyncio.gather(*[_safe_generate(p, ctx) for p in enabled_p
        ├─ Check cache (Redis lookup)
        ├─ If cache miss:
        │  ├─ TrendsAdapter.fetch_seeds()
-       │  ├─ PromptBuilder.build() 
+       │  ├─ PromptBuilder.build()
        │  ├─ LLMClient.generate_questions()
        │  └─ PostProcessor.process()
        └─ Cache result and return ProviderResult
@@ -195,14 +195,14 @@ priority_weights = {
     "implementation_migration": 8,
     "roi_tco": 8,
     "support_reliability": 8,
-    
+
     # Discovery/consideration
     "alternatives": 7,
     "reviews": 7,
     "industry_specific": 7,
     "features": 6,
     "geography": 6,
-    
+
     # Provider categories
     "dynamic": 8,
     "template": 5,
@@ -229,7 +229,7 @@ priority_weights = {
 #### Observability
 - **Prometheus Metrics:**
   - `provider_calls_total`: Counter by provider name
-  - `provider_failures_total`: Counter by provider name  
+  - `provider_failures_total`: Counter by provider name
   - `provider_latency_seconds`: Histogram by provider name
 
 #### Error Handling

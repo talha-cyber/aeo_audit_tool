@@ -94,11 +94,11 @@ class SchedulingRepository:
 
     # Job Management Methods
 
-    def create_job(self, job_data: Dict[str, Any]) -> ScheduledJob:
+    def create_job(self, job_record: Dict[str, Any]) -> ScheduledJob:
         """Create a new scheduled job"""
         try:
             with self.transaction() as db:
-                job = ScheduledJob(**job_data)
+                job = ScheduledJob(**job_record)
                 db.add(job)
                 db.flush()  # Get ID without committing
 

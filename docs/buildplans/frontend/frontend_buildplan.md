@@ -5,17 +5,17 @@ Here’s a **ready-to-paste `.md` guide** you can keep in your repo (e.g. `docs/
 ````markdown
 # Frontend Building Guide — AEO SaaS
 
-> A practical handbook for building the frontend of the AEO Competitive Intelligence Tool using AI coding agents.  
+> A practical handbook for building the frontend of the AEO Competitive Intelligence Tool using AI coding agents.
 > Focus: **evolvable black-and-white graybox → branded, agency-ready UI**.
 
 ---
 
 ## 1. Core Principles
 
-- **Build gray first**: start in black & white (graybox) to validate flows, content, and hierarchy before styling.  
-- **Separate concerns**: structure/layout first → tokens & primitives later → branding last.  
-- **Agent guardrails**: AI agents must only use approved primitives and tokens.  
-- **Composable, evolvable**: every part should be easy to reskin without rewriting code.  
+- **Build gray first**: start in black & white (graybox) to validate flows, content, and hierarchy before styling.
+- **Separate concerns**: structure/layout first → tokens & primitives later → branding last.
+- **Agent guardrails**: AI agents must only use approved primitives and tokens.
+- **Composable, evolvable**: every part should be easy to reskin without rewriting code.
 - **Professional-first**: prioritize clarity, accessibility, and data density; branding is a layer on top.
 
 ---
@@ -24,9 +24,9 @@ Here’s a **ready-to-paste `.md` guide** you can keep in your repo (e.g. `docs/
 
 - Framework: **Next.js App Router + TypeScript**
 - Styling: **Tailwind CSS** mapped to **CSS variables (tokens.css)**
-- State/Data:  
-  - **TanStack Query** for server state (API data)  
-  - **Zustand** for local UI state  
+- State/Data:
+  - **TanStack Query** for server state (API data)
+  - **Zustand** for local UI state
   - **Zod** for runtime validation & schema inference
 - Testing: **Vitest + React Testing Library** (units), **Playwright** (flows), **Storybook** (visual primitives)
 

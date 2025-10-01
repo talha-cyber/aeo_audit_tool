@@ -53,7 +53,9 @@ async def test_cache_custom_serializer_deserializer():
 
     result = await cache.get(
         "serialized",
-        deserialize=lambda raw: {pair.split("=")[0]: int(pair.split("=")[1]) for pair in raw.split("|")},
+        deserialize=lambda raw: {
+            pair.split("=")[0]: int(pair.split("=")[1]) for pair in raw.split("|")
+        },
     )
 
     assert result == {"value": 42}

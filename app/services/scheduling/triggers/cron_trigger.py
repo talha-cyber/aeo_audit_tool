@@ -8,8 +8,6 @@ DST transitions, and comprehensive validation.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-import pytz
-
 try:
     from croniter import croniter
 except ImportError:  # pragma: no cover - fallback implementation below
@@ -22,7 +20,9 @@ from .base import BaseTrigger, TriggerCalculationError, TriggerValidationError
 logger = get_logger(__name__)
 
 
-def _parse_cron_field(field: str, min_val: int, max_val: int) -> Optional[tuple[int, ...]]:
+def _parse_cron_field(
+    field: str, min_val: int, max_val: int
+) -> Optional[tuple[int, ...]]:
     """Parse a cron field into an immutable tuple of allowed values."""
     field = field.strip()
     if field == "*" or not field:
@@ -134,6 +134,7 @@ class _SimpleCronIter:
                 return candidate
 
         raise ValueError("Unable to compute next cron run time")
+
 
 class CronTrigger(BaseTrigger):
     """
@@ -296,7 +297,9 @@ class CronTrigger(BaseTrigger):
         """Validate cron expression using croniter and prepare for use"""
         try:
             base_now = self.now()
-            now_local = base_now if self.tz == timezone.utc else base_now.astimezone(self.tz)
+            now_local = (
+                base_now if self.tz == timezone.utc else base_now.astimezone(self.tz)
+            )
 
             if croniter:
                 test_cron = croniter(self.expression, now_local)

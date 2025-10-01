@@ -28,6 +28,7 @@ cp .env.example .env
 - `NEXT_PUBLIC_USE_MOCKS=true` keeps the UI backed by the deterministic mock client.
 - Flip to `false` once the FastAPI endpoints are wired.
 - `NEXT_PUBLIC_API_BASE_URL` should match the backend gateway (default: `http://localhost:8000/api/v1`).
+- `NEXT_PUBLIC_DASHBOARD_USER_ID` selects which persona library owner to load (defaults to `demo-user` when unset).
 
 ## Available Scripts
 

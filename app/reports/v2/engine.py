@@ -43,10 +43,20 @@ except ImportError:
 from .metrics import BrandStats, aggregate_brands
 from .sections import (
     appendix as s_appendix,
+)
+from .sections import (
     competitive as s_competitive,
+)
+from .sections import (
     platforms as s_platforms,
+)
+from .sections import (
     recommendations as s_recommendations,
+)
+from .sections import (
     summary as s_summary,
+)
+from .sections import (
     title as s_title,
 )
 from .theme import format_date, get_theme, register_fonts

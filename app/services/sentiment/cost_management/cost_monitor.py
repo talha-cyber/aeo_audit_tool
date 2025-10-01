@@ -5,15 +5,14 @@ Tracks usage, estimates costs, and provides recommendations for cost-effective
 sentiment analysis operations.
 """
 
-import asyncio
 import json
-import time
 import threading
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
+import time
 from collections import defaultdict, deque
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import psutil
 
@@ -25,6 +24,7 @@ logger = get_logger(__name__)
 @dataclass
 class UsageMetrics:
     """Usage metrics for a specific operation"""
+
     operation_type: str
     timestamp: float
     duration: float
@@ -42,6 +42,7 @@ class UsageMetrics:
 @dataclass
 class CostEstimate:
     """Cost estimate for operations"""
+
     compute_cost: float
     memory_cost: float
     storage_cost: float
@@ -56,11 +57,11 @@ class CostCalculator:
     def __init__(self):
         # Cost rates (rough estimates for local operations)
         self.rates = {
-            "cpu_hour": 0.02,      # $0.02 per hour of CPU usage
-            "gpu_hour": 0.10,      # $0.10 per hour of GPU usage
-            "memory_gb_hour": 0.001, # $0.001 per GB-hour of memory
-            "storage_gb_month": 0.02, # $0.02 per GB-month of storage
-            "inference_request": 0.0001, # $0.0001 per inference request
+            "cpu_hour": 0.02,  # $0.02 per hour of CPU usage
+            "gpu_hour": 0.10,  # $0.10 per hour of GPU usage
+            "memory_gb_hour": 0.001,  # $0.001 per GB-hour of memory
+            "storage_gb_month": 0.02,  # $0.02 per GB-month of storage
+            "inference_request": 0.0001,  # $0.0001 per inference request
             "training_hour": 0.05,  # $0.05 per hour of training
         }
 
@@ -69,7 +70,7 @@ class CostCalculator:
         duration_seconds: float,
         memory_mb: float,
         gpu_memory_mb: float,
-        model_size: str = "small"
+        model_size: str = "small",
     ) -> CostEstimate:
         """Calculate cost for inference operations"""
 
@@ -81,14 +82,16 @@ class CostCalculator:
 
         # Memory cost
         memory_gb = memory_mb / 1024
-        memory_cost = (duration_seconds / 3600) * memory_gb * self.rates["memory_gb_hour"]
+        memory_cost = (
+            (duration_seconds / 3600) * memory_gb * self.rates["memory_gb_hour"]
+        )
 
         # Model size multiplier
         size_multipliers = {
             "ultra_small": 0.5,
             "small": 1.0,
             "medium": 2.0,
-            "large": 4.0
+            "large": 4.0,
         }
         multiplier = size_multipliers.get(model_size, 1.0)
 
@@ -99,7 +102,7 @@ class CostCalculator:
             memory_cost=memory_cost,
             storage_cost=0.0,
             total_cost=total_cost,
-            cost_per_request=total_cost
+            cost_per_request=total_cost,
         )
 
     def calculate_training_cost(
@@ -107,7 +110,7 @@ class CostCalculator:
         duration_hours: float,
         memory_gb: float,
         num_samples: int,
-        model_size: str = "small"
+        model_size: str = "small",
     ) -> CostEstimate:
         """Calculate cost for training operations"""
 
@@ -115,7 +118,9 @@ class CostCalculator:
         base_cost = duration_hours * self.rates["training_hour"]
 
         # Memory cost
-        memory_cost = duration_hours * memory_gb * self.rates["memory_gb_hour"] * 2  # Training uses more memory
+        memory_cost = (
+            duration_hours * memory_gb * self.rates["memory_gb_hour"] * 2
+        )  # Training uses more memory
 
         # Sample complexity cost
         sample_cost = num_samples * 0.00001  # $0.00001 per sample
@@ -125,7 +130,7 @@ class CostCalculator:
             "ultra_small": 0.3,
             "small": 1.0,
             "medium": 3.0,
-            "large": 8.0
+            "large": 8.0,
         }
         multiplier = size_multipliers.get(model_size, 1.0)
 
@@ -136,13 +141,11 @@ class CostCalculator:
             memory_cost=memory_cost,
             storage_cost=sample_cost,
             total_cost=total_cost,
-            cost_per_request=total_cost / max(1, num_samples)
+            cost_per_request=total_cost / max(1, num_samples),
         )
 
     def calculate_storage_cost(
-        self,
-        storage_gb: float,
-        duration_days: float = 30
+        self, storage_gb: float, duration_days: float = 30
     ) -> CostEstimate:
         """Calculate storage costs"""
 
@@ -155,7 +158,7 @@ class CostCalculator:
             memory_cost=0.0,
             storage_cost=total_cost,
             total_cost=total_cost,
-            cost_per_request=0.0
+            cost_per_request=0.0,
         )
 
 
@@ -168,7 +171,7 @@ class ResourceTracker:
             "cpu_percent": 0.0,
             "memory_mb": 0.0,
             "gpu_memory_mb": 0.0,
-            "disk_usage_gb": 0.0
+            "disk_usage_gb": 0.0,
         }
         self._tracking_thread = None
 
@@ -179,8 +182,7 @@ class ResourceTracker:
 
         self.tracking_active = True
         self._tracking_thread = threading.Thread(
-            target=self._tracking_loop,
-            daemon=True
+            target=self._tracking_loop, daemon=True
         )
         self._tracking_thread.start()
         logger.info("Started resource tracking")
@@ -202,12 +204,15 @@ class ResourceTracker:
                 # Memory usage
                 memory = psutil.virtual_memory()
                 process = psutil.Process()
-                self.current_usage["memory_mb"] = process.memory_info().rss / (1024 * 1024)
+                self.current_usage["memory_mb"] = process.memory_info().rss / (
+                    1024 * 1024
+                )
 
                 # GPU memory (if available)
                 gpu_memory = 0.0
                 try:
                     import torch
+
                     if torch.cuda.is_available():
                         for i in range(torch.cuda.device_count()):
                             gpu_memory += torch.cuda.memory_allocated(i) / (1024 * 1024)
@@ -217,7 +222,7 @@ class ResourceTracker:
                 self.current_usage["gpu_memory_mb"] = gpu_memory
 
                 # Disk usage
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
                 self.current_usage["disk_usage_gb"] = disk.used / (1024 * 1024 * 1024)
 
                 time.sleep(5)  # Update every 5 seconds
@@ -247,7 +252,7 @@ class CostMonitor:
         self,
         storage_dir: str = "cost_monitoring",
         budget_limit: float = 10.0,  # $10 monthly budget
-        alert_threshold: float = 0.8  # Alert at 80% of budget
+        alert_threshold: float = 0.8,  # Alert at 80% of budget
     ):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(exist_ok=True)
@@ -279,7 +284,7 @@ class CostMonitor:
         try:
             history_file = self.storage_dir / "usage_history.json"
             if history_file.exists():
-                with open(history_file, 'r') as f:
+                with open(history_file, "r") as f:
                     data = json.load(f)
 
                 # Restore usage history
@@ -301,13 +306,15 @@ class CostMonitor:
             history_file = self.storage_dir / "usage_history.json"
 
             data = {
-                "usage_history": [asdict(metric) for metric in list(self.usage_history)],
+                "usage_history": [
+                    asdict(metric) for metric in list(self.usage_history)
+                ],
                 "daily_costs": dict(self.daily_costs),
                 "monthly_costs": dict(self.monthly_costs),
-                "last_updated": time.time()
+                "last_updated": time.time(),
             }
 
-            with open(history_file, 'w') as f:
+            with open(history_file, "w") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
@@ -333,7 +340,7 @@ class CostMonitor:
         input_tokens: int = 0,
         output_tokens: int = 0,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Record a completed operation"""
 
@@ -353,7 +360,7 @@ class CostMonitor:
             model_name=model_name,
             provider_name=provider_name,
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
 
         # Add to history
@@ -366,21 +373,19 @@ class CostMonitor:
                 duration,
                 usage["memory_mb"],
                 usage["gpu_memory_mb"],
-                self._extract_model_size(model_name)
+                self._extract_model_size(model_name),
             )
         elif operation_type == "training":
             cost_estimate = self.calculator.calculate_training_cost(
                 duration / 3600,  # Convert to hours
                 usage["memory_mb"] / 1024,  # Convert to GB
                 input_tokens,  # Use as sample count
-                self._extract_model_size(model_name)
+                self._extract_model_size(model_name),
             )
         else:
             # Default cost calculation
             cost_estimate = self.calculator.calculate_inference_cost(
-                duration,
-                usage["memory_mb"],
-                usage["gpu_memory_mb"]
+                duration, usage["memory_mb"], usage["gpu_memory_mb"]
             )
 
         # Update cost tracking
@@ -394,7 +399,9 @@ class CostMonitor:
         # Check for budget alerts
         self._check_budget_alerts()
 
-        logger.debug(f"Recorded operation: {operation_type}, cost: ${cost_estimate.total_cost:.6f}")
+        logger.debug(
+            f"Recorded operation: {operation_type}, cost: ${cost_estimate.total_cost:.6f}"
+        )
 
     def _extract_model_size(self, model_name: str) -> str:
         """Extract model size from model name"""
@@ -457,13 +464,18 @@ class CostMonitor:
 
         # Calculate statistics from recent operations
         recent_operations = [
-            m for m in self.usage_history
+            m
+            for m in self.usage_history
             if time.time() - m.timestamp < (86400 if period == "day" else 86400 * 30)
         ]
 
         if recent_operations:
-            avg_duration = sum(op.duration for op in recent_operations) / len(recent_operations)
-            success_rate = sum(1 for op in recent_operations if op.success) / len(recent_operations)
+            avg_duration = sum(op.duration for op in recent_operations) / len(
+                recent_operations
+            )
+            success_rate = sum(1 for op in recent_operations if op.success) / len(
+                recent_operations
+            )
             total_operations = len(recent_operations)
         else:
             avg_duration = 0.0
@@ -475,12 +487,16 @@ class CostMonitor:
             "period_key": period_key,
             "total_cost": total_cost,
             "budget_limit": self.budget_limit,
-            "budget_used_percent": (total_cost / self.budget_limit * 100) if self.budget_limit > 0 else 0,
+            "budget_used_percent": (total_cost / self.budget_limit * 100)
+            if self.budget_limit > 0
+            else 0,
             "total_operations": total_operations,
             "avg_cost_per_operation": total_cost / max(1, total_operations),
             "avg_duration": avg_duration,
             "success_rate": success_rate,
-            "estimated_monthly_cost": total_cost * 30 if period == "day" else total_cost
+            "estimated_monthly_cost": total_cost * 30
+            if period == "day"
+            else total_cost,
         }
 
     def get_usage_analytics(self) -> Dict:
@@ -504,12 +520,12 @@ class CostMonitor:
             "total_operations": len(self.usage_history),
             "time_range": {
                 "start": min(m.timestamp for m in self.usage_history),
-                "end": max(m.timestamp for m in self.usage_history)
+                "end": max(m.timestamp for m in self.usage_history),
             },
             "by_operation_type": {},
             "by_provider": {},
             "by_model": {},
-            "performance_metrics": self._calculate_performance_metrics()
+            "performance_metrics": self._calculate_performance_metrics(),
         }
 
         # Operation type analytics
@@ -518,9 +534,7 @@ class CostMonitor:
                 "count": len(metrics),
                 "avg_duration": sum(m.duration for m in metrics) / len(metrics),
                 "success_rate": sum(1 for m in metrics if m.success) / len(metrics),
-                "total_cost": sum(
-                    self._estimate_operation_cost(m) for m in metrics
-                )
+                "total_cost": sum(self._estimate_operation_cost(m) for m in metrics),
             }
 
         # Provider analytics
@@ -529,7 +543,7 @@ class CostMonitor:
                 "count": len(metrics),
                 "avg_duration": sum(m.duration for m in metrics) / len(metrics),
                 "success_rate": sum(1 for m in metrics if m.success) / len(metrics),
-                "avg_memory_mb": sum(m.memory_used_mb for m in metrics) / len(metrics)
+                "avg_memory_mb": sum(m.memory_used_mb for m in metrics) / len(metrics),
             }
 
         # Model analytics
@@ -538,7 +552,7 @@ class CostMonitor:
                 "count": len(metrics),
                 "avg_duration": sum(m.duration for m in metrics) / len(metrics),
                 "success_rate": sum(1 for m in metrics if m.success) / len(metrics),
-                "avg_memory_mb": sum(m.memory_used_mb for m in metrics) / len(metrics)
+                "avg_memory_mb": sum(m.memory_used_mb for m in metrics) / len(metrics),
             }
 
         return analytics
@@ -551,12 +565,19 @@ class CostMonitor:
         recent_metrics = list(self.usage_history)[-100:]  # Last 100 operations
 
         return {
-            "avg_response_time": sum(m.duration for m in recent_metrics) / len(recent_metrics),
-            "p95_response_time": sorted([m.duration for m in recent_metrics])[int(len(recent_metrics) * 0.95)],
-            "error_rate": 1 - (sum(1 for m in recent_metrics if m.success) / len(recent_metrics)),
-            "avg_memory_usage": sum(m.memory_used_mb for m in recent_metrics) / len(recent_metrics),
-            "throughput_ops_per_minute": len(recent_metrics) / ((time.time() - recent_metrics[0].timestamp) / 60)
-            if len(recent_metrics) > 1 else 0
+            "avg_response_time": sum(m.duration for m in recent_metrics)
+            / len(recent_metrics),
+            "p95_response_time": sorted([m.duration for m in recent_metrics])[
+                int(len(recent_metrics) * 0.95)
+            ],
+            "error_rate": 1
+            - (sum(1 for m in recent_metrics if m.success) / len(recent_metrics)),
+            "avg_memory_usage": sum(m.memory_used_mb for m in recent_metrics)
+            / len(recent_metrics),
+            "throughput_ops_per_minute": len(recent_metrics)
+            / ((time.time() - recent_metrics[0].timestamp) / 60)
+            if len(recent_metrics) > 1
+            else 0,
         }
 
     def _estimate_operation_cost(self, metric: UsageMetrics) -> float:
@@ -566,14 +587,14 @@ class CostMonitor:
                 metric.duration,
                 metric.memory_used_mb,
                 metric.gpu_memory_mb,
-                self._extract_model_size(metric.model_name)
+                self._extract_model_size(metric.model_name),
             )
         else:
             cost_estimate = self.calculator.calculate_training_cost(
                 metric.duration / 3600,
                 metric.memory_used_mb / 1024,
                 metric.input_tokens,
-                self._extract_model_size(metric.model_name)
+                self._extract_model_size(metric.model_name),
             )
 
         return cost_estimate.total_cost
@@ -629,14 +650,18 @@ class CostMonitor:
                 provider_efficiency[provider] = efficiency
 
             if len(provider_efficiency) > 1:
-                best_provider = max(provider_efficiency.keys(), key=lambda x: provider_efficiency[x])
+                best_provider = max(
+                    provider_efficiency.keys(), key=lambda x: provider_efficiency[x]
+                )
                 recommendations.append(
                     f"Most efficient provider: {best_provider}. "
                     "Consider using it for more operations."
                 )
 
         if not recommendations:
-            recommendations.append("No specific optimizations needed. System is performing well!")
+            recommendations.append(
+                "No specific optimizations needed. System is performing well!"
+            )
 
         return recommendations
 
@@ -647,20 +672,20 @@ class CostMonitor:
             "summary": {
                 "daily": self.get_cost_summary("day"),
                 "monthly": self.get_cost_summary("month"),
-                "session": self.get_cost_summary("session")
+                "session": self.get_cost_summary("session"),
             },
             "analytics": self.get_usage_analytics(),
             "recommendations": self.get_optimization_recommendations(),
             "budget_info": {
                 "limit": self.budget_limit,
                 "alert_threshold": self.alert_threshold,
-                "alerts_sent": list(self.alerts_sent)
-            }
+                "alerts_sent": list(self.alerts_sent),
+            },
         }
 
         if format == "json":
             report_file = self.storage_dir / f"cost_report_{int(time.time())}.json"
-            with open(report_file, 'w') as f:
+            with open(report_file, "w") as f:
                 json.dump(report_data, f, indent=2)
 
             return str(report_file)

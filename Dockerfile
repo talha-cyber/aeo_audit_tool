@@ -12,8 +12,8 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download required NLP assets
-RUN python -m spacy download en_core_web_sm
+# Download required NLP assets (commented out for now)
+# RUN python -m spacy download en_core_web_sm
 
 # Copy application source
 COPY . .

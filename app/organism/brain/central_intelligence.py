@@ -8,31 +8,33 @@ learning, healing, evolution, and adaptation across the entire system.
 import asyncio
 import threading
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from app.utils.logger import get_logger
-from app.organism.control.master_switch import get_organic_control, FeatureCategory
 from app.organism.control.decorators import register_organic_feature
+from app.organism.control.master_switch import FeatureCategory, get_organic_control
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class IntelligenceMode(str, Enum):
     """Operating modes for central intelligence"""
-    DORMANT = "dormant"           # Intelligence is sleeping
-    OBSERVING = "observing"       # Monitoring and learning only
-    ANALYZING = "analyzing"       # Active pattern analysis
-    ADAPTING = "adapting"         # Making adaptations
-    HEALING = "healing"           # Active healing and repair
-    EVOLVING = "evolving"         # Evolutionary improvements
+
+    DORMANT = "dormant"  # Intelligence is sleeping
+    OBSERVING = "observing"  # Monitoring and learning only
+    ANALYZING = "analyzing"  # Active pattern analysis
+    ADAPTING = "adapting"  # Making adaptations
+    HEALING = "healing"  # Active healing and repair
+    EVOLVING = "evolving"  # Evolutionary improvements
 
 
 @dataclass
 class SystemInsight:
     """Insight discovered by central intelligence"""
+
     id: str
     timestamp: datetime
     category: str
@@ -46,6 +48,7 @@ class SystemInsight:
 @dataclass
 class AdaptationPlan:
     """Plan for system adaptation"""
+
     id: str
     name: str
     description: str
@@ -98,7 +101,7 @@ class CentralIntelligence:
             "adaptations_planned": 0,
             "adaptations_executed": 0,
             "learning_cycles": 0,
-            "consciousness_evolution": []
+            "consciousness_evolution": [],
         }
 
         logger.info("Central Intelligence initialized")
@@ -131,17 +134,19 @@ class CentralIntelligence:
                 self._intelligence_thread = threading.Thread(
                     target=self._intelligence_loop,
                     daemon=True,
-                    name="CentralIntelligence"
+                    name="CentralIntelligence",
                 )
                 self._intelligence_thread.start()
 
                 # Begin consciousness evolution
                 self._consciousness_level = 0.1
-                self._performance_metrics["consciousness_evolution"].append({
-                    "timestamp": time.time(),
-                    "level": self._consciousness_level,
-                    "event": "awakening"
-                })
+                self._performance_metrics["consciousness_evolution"].append(
+                    {
+                        "timestamp": time.time(),
+                        "level": self._consciousness_level,
+                        "event": "awakening",
+                    }
+                )
 
                 logger.info("Central Intelligence awakened successfully")
                 return True
@@ -186,10 +191,10 @@ class CentralIntelligence:
         """Initialize intelligence sub-components"""
         try:
             # Import here to avoid circular imports
-            from .pattern_recognition import PatternRecognizer
+            from .adaptation_controller import AdaptationController
             from .decision_engine import DecisionEngine
             from .memory_consolidation import MemoryConsolidator
-            from .adaptation_controller import AdaptationController
+            from .pattern_recognition import PatternRecognizer
 
             self._pattern_recognizer = PatternRecognizer()
             self._decision_engine = DecisionEngine()
@@ -242,8 +247,12 @@ class CentralIntelligence:
             await self._observe_system()
 
             # 3. Analyze patterns
-            if self._mode in [IntelligenceMode.ANALYZING, IntelligenceMode.ADAPTING,
-                             IntelligenceMode.HEALING, IntelligenceMode.EVOLVING]:
+            if self._mode in [
+                IntelligenceMode.ANALYZING,
+                IntelligenceMode.ADAPTING,
+                IntelligenceMode.HEALING,
+                IntelligenceMode.EVOLVING,
+            ]:
                 await self._analyze_patterns()
 
             # 4. Generate insights
@@ -283,11 +292,17 @@ class CentralIntelligence:
             # - Learning progress
             # - Adaptation success rate
 
-            activity_factor = len(status.active_features) / 10.0  # Assume max 10 features
+            activity_factor = (
+                len(status.active_features) / 10.0
+            )  # Assume max 10 features
             uptime_factor = min(1.0, status.uptime / 3600.0)  # Normalize to 1 hour
-            learning_factor = min(1.0, self._learning_cycles / 100.0)  # Normalize to 100 cycles
+            learning_factor = min(
+                1.0, self._learning_cycles / 100.0
+            )  # Normalize to 100 cycles
 
-            new_level = min(1.0, (activity_factor + uptime_factor + learning_factor) / 3.0)
+            new_level = min(
+                1.0, (activity_factor + uptime_factor + learning_factor) / 3.0
+            )
 
             # Gradually evolve consciousness
             if new_level > self._consciousness_level:
@@ -308,15 +323,21 @@ class CentralIntelligence:
                 self._mode = IntelligenceMode.EVOLVING
 
             # Record consciousness evolution
-            if len(self._performance_metrics["consciousness_evolution"]) == 0 or \
-               abs(self._consciousness_level -
-                   self._performance_metrics["consciousness_evolution"][-1]["level"]) > 0.05:
-
-                self._performance_metrics["consciousness_evolution"].append({
-                    "timestamp": time.time(),
-                    "level": self._consciousness_level,
-                    "mode": self._mode.value
-                })
+            if (
+                len(self._performance_metrics["consciousness_evolution"]) == 0
+                or abs(
+                    self._consciousness_level
+                    - self._performance_metrics["consciousness_evolution"][-1]["level"]
+                )
+                > 0.05
+            ):
+                self._performance_metrics["consciousness_evolution"].append(
+                    {
+                        "timestamp": time.time(),
+                        "level": self._consciousness_level,
+                        "mode": self._mode.value,
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error updating consciousness: {e}")
@@ -356,9 +377,12 @@ class CentralIntelligence:
                     category="performance",
                     confidence=0.7,
                     description=f"System has completed {self._learning_cycles} learning cycles",
-                    evidence={"cycles": self._learning_cycles, "uptime": time.time() - self._startup_time},
+                    evidence={
+                        "cycles": self._learning_cycles,
+                        "uptime": time.time() - self._startup_time,
+                    },
                     suggested_actions=["Continue monitoring", "Consider optimization"],
-                    impact_assessment={"performance": 0.1, "stability": 0.0}
+                    impact_assessment={"performance": 0.1, "stability": 0.0},
                 )
 
                 self._active_insights[insight.id] = insight
@@ -373,7 +397,9 @@ class CentralIntelligence:
             if self._decision_engine and self._active_insights:
                 for insight in self._active_insights.values():
                     if insight.confidence > 0.8:  # High confidence insights
-                        plan = await self._decision_engine.create_adaptation_plan(insight)
+                        plan = await self._decision_engine.create_adaptation_plan(
+                            insight
+                        )
                         if plan:
                             self._adaptation_plans[plan.id] = plan
                             self._performance_metrics["adaptations_planned"] += 1
@@ -427,7 +453,7 @@ class CentralIntelligence:
             "active_insights": len(self._active_insights),
             "adaptation_plans": len(self._adaptation_plans),
             "uptime": time.time() - self._startup_time,
-            "performance_metrics": self._performance_metrics
+            "performance_metrics": self._performance_metrics,
         }
 
     async def shutdown(self):

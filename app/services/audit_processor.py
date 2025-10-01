@@ -313,7 +313,9 @@ class AuditProcessor:
                 )
 
             if not available_platforms:
-                raise AuditConfigurationError("No platforms available for audit execution")
+                raise AuditConfigurationError(
+                    "No platforms available for audit execution"
+                )
 
             contextual_logger.info(
                 "Execution context prepared",
@@ -345,9 +347,13 @@ class AuditProcessor:
             except (ValueError, TypeError, AttributeError):
                 audit_uuid = uuid.uuid5(uuid.NAMESPACE_OID, str(audit_run.id))
 
-            client_context = context.get("client") or (audit_run.config or {}).get("client")
+            client_context = context.get("client") or (audit_run.config or {}).get(
+                "client"
+            )
             if not client_context:
-                raise AuditConfigurationError("Missing client context for question generation")
+                raise AuditConfigurationError(
+                    "Missing client context for question generation"
+                )
 
             question_context = QuestionContext(
                 client_brand=client_context["name"],
@@ -500,12 +506,12 @@ class AuditProcessor:
             question_record = question_models.Question(
                 id=str(uuid.uuid4()),
                 audit_run_id=audit_run_id,
-                    question_text=question_data["question"],
-                    category=question_data.get("category", "unknown"),
-                    question_type=question_data.get("question_type", "unknown"),
-                    priority_score=question_data.get("priority_score", 0.0),
-                    target_brand=question_data.get("target_brand"),
-                    provider=question_data.get("provider", "question_engine"),
+                question_text=question_data["question"],
+                category=question_data.get("category", "unknown"),
+                question_type=question_data.get("question_type", "unknown"),
+                priority_score=question_data.get("priority_score", 0.0),
+                target_brand=question_data.get("target_brand"),
+                provider=question_data.get("provider", "question_engine"),
                 question_metadata=serialized_metadata,
             )
             # Propagate generated question ID back to caller so downstream processing

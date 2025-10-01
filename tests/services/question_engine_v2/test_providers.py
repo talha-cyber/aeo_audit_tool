@@ -45,7 +45,9 @@ if "structlog.types" not in sys.modules:
 
 from app.services.question_engine_v2.providers.base import ProviderExecutionContext
 from app.services.question_engine_v2.providers.dynamic_provider import DynamicProviderV2
-from app.services.question_engine_v2.providers.template_provider import TemplateProviderV2
+from app.services.question_engine_v2.providers.template_provider import (
+    TemplateProviderV2,
+)
 from app.services.question_engine_v2.schemas import (
     DynamicProviderOptions,
     PersonaMode,
@@ -82,7 +84,9 @@ def sample_persona() -> PersonaResolution:
 
 
 @pytest.mark.asyncio
-async def test_template_provider_renders_catalog_templates(sample_request, sample_persona):
+async def test_template_provider_renders_catalog_templates(
+    sample_request, sample_persona
+):
     provider = TemplateProviderV2(options=TemplateProviderOptions(max_per_persona=5))
     context = ProviderExecutionContext(
         request=sample_request,
@@ -135,7 +139,9 @@ class _StubRouter:
 
 
 @pytest.mark.asyncio
-async def test_dynamic_provider_invokes_router_with_schema(sample_request, sample_persona):
+async def test_dynamic_provider_invokes_router_with_schema(
+    sample_request, sample_persona
+):
     payload = {
         "questions": [
             {
@@ -169,7 +175,9 @@ async def test_dynamic_provider_invokes_router_with_schema(sample_request, sampl
     assert len(router.calls) == 1
     prompt, schema, call_kwargs = router.calls[0]
     assert "Seed mix" in prompt
-    assert schema["properties"]["questions"]["minItems"] == context.quotas.per_persona_min
+    assert (
+        schema["properties"]["questions"]["minItems"] == context.quotas.per_persona_min
+    )
     assert len(questions) == 1
     assert questions[0].provider == provider.name
     assert metadata["count"] == 1

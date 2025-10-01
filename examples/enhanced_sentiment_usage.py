@@ -6,15 +6,13 @@ including efficient transformers, domain adaptation, and cost monitoring.
 """
 
 import asyncio
-import json
-from typing import List
+
+from app.services.sentiment.core.models import AnalysisContext
 
 # Import the enhanced sentiment engine
 from app.services.sentiment.enhanced_engine import (
     create_enhanced_sentiment_engine,
-    EnhancedSentimentEngine
 )
-from app.services.sentiment.core.models import AnalysisContext
 
 
 async def basic_cost_effective_analysis():
@@ -23,8 +21,7 @@ async def basic_cost_effective_analysis():
 
     # Create enhanced engine with balanced cost preference
     engine = await create_enhanced_sentiment_engine(
-        cost_preference="balanced",
-        budget_limit=5.0  # $5 monthly budget
+        cost_preference="balanced", budget_limit=5.0  # $5 monthly budget
     )
 
     try:
@@ -35,22 +32,28 @@ async def basic_cost_effective_analysis():
         result_ultra_low = await engine.analyze_cost_effective(
             text, cost_preference="ultra_low"
         )
-        print(f"Ultra-low cost: {result_ultra_low.polarity.value} "
-              f"(confidence: {result_ultra_low.confidence:.3f})")
+        print(
+            f"Ultra-low cost: {result_ultra_low.polarity.value} "
+            f"(confidence: {result_ultra_low.confidence:.3f})"
+        )
 
         # Balanced analysis (good accuracy/cost trade-off)
         result_balanced = await engine.analyze_cost_effective(
             text, cost_preference="balanced"
         )
-        print(f"Balanced: {result_balanced.polarity.value} "
-              f"(confidence: {result_balanced.confidence:.3f})")
+        print(
+            f"Balanced: {result_balanced.polarity.value} "
+            f"(confidence: {result_balanced.confidence:.3f})"
+        )
 
         # High accuracy analysis (best model, higher cost)
         result_accurate = await engine.analyze_cost_effective(
             text, cost_preference="high_accuracy"
         )
-        print(f"High accuracy: {result_accurate.polarity.value} "
-              f"(confidence: {result_accurate.confidence:.3f})")
+        print(
+            f"High accuracy: {result_accurate.polarity.value} "
+            f"(confidence: {result_accurate.confidence:.3f})"
+        )
 
         print("✅ Basic analysis completed successfully")
 
@@ -64,7 +67,7 @@ async def batch_processing_example():
 
     engine = await create_enhanced_sentiment_engine(
         cost_preference="low",  # Use low-cost models for bulk processing
-        budget_limit=10.0
+        budget_limit=10.0,
     )
 
     try:
@@ -79,14 +82,12 @@ async def batch_processing_example():
             "Price is too high for what you get.",
             "Perfect for my needs!",
             "Customer support was unhelpful.",
-            "Great value for money!"
+            "Great value for money!",
         ]
 
         # Process batch with cost optimization
         batch_result = await engine.batch_analyze_optimized(
-            texts=texts,
-            cost_preference="low",
-            brand="ExampleBrand"
+            texts=texts, cost_preference="low", brand="ExampleBrand"
         )
 
         print(f"Processed {len(batch_result.results)} texts")
@@ -109,8 +110,7 @@ async def domain_adaptation_example():
     print("\n=== Example 3: Domain Adaptation ===")
 
     engine = await create_enhanced_sentiment_engine(
-        enable_domain_adaptation=True,
-        budget_limit=15.0  # Higher budget for training
+        enable_domain_adaptation=True, budget_limit=15.0  # Higher budget for training
     )
 
     try:
@@ -130,26 +130,37 @@ async def domain_adaptation_example():
             "Best pasta I've ever had!",
             "Poor hygiene in the restroom.",
             "Amazing dessert selection.",
-            "Waitress was rude and impatient."
+            "Waitress was rude and impatient.",
         ]
 
         training_labels = [
-            "positive", "negative", "positive", "negative", "positive",
-            "negative", "positive", "positive", "negative", "positive",
-            "negative", "positive", "negative", "positive", "negative"
+            "positive",
+            "negative",
+            "positive",
+            "negative",
+            "positive",
+            "negative",
+            "positive",
+            "positive",
+            "negative",
+            "positive",
+            "negative",
+            "positive",
+            "negative",
+            "positive",
+            "negative",
         ]
 
         # Check if we have enough budget for training
         cost_estimate = engine.domain_adapter.estimate_training_cost(
-            num_samples=len(training_texts),
-            num_epochs=3
+            num_samples=len(training_texts), num_epochs=3
         )
 
         print(f"Estimated training cost: ${cost_estimate['estimated_gpu_cost']:.4f}")
         print(f"Estimated training time: {cost_estimate['estimated_hours']:.2f} hours")
 
         # Train domain-specific model
-        if cost_estimate['estimated_gpu_cost'] < 2.0:  # Only train if under $2
+        if cost_estimate["estimated_gpu_cost"] < 2.0:  # Only train if under $2
             print("Training restaurant domain model...")
 
             training_results = await engine.train_domain_model(
@@ -157,23 +168,26 @@ async def domain_adaptation_example():
                 training_texts=training_texts,
                 training_labels=training_labels,
                 validation_split=0.3,
-                cost_limit=1.0  # Max 1 hour of training
+                cost_limit=1.0,  # Max 1 hour of training
             )
 
             if "error" not in training_results:
                 print(f"Training completed in {training_results['training_time']:.2f}s")
                 print(f"Training cost: ${training_results['estimated_cost']:.4f}")
-                print(f"Final training loss: {training_results['final_train_loss']:.4f}")
+                print(
+                    f"Final training loss: {training_results['final_train_loss']:.4f}"
+                )
 
                 # Test the domain model
                 test_text = "The service was terrible and the food was cold."
                 result = await engine.analyze_with_domain_model(
-                    text=test_text,
-                    domain_name="restaurant_reviews"
+                    text=test_text, domain_name="restaurant_reviews"
                 )
 
-                print(f"Domain model result: {result.polarity.value} "
-                      f"(confidence: {result.confidence:.3f})")
+                print(
+                    f"Domain model result: {result.polarity.value} "
+                    f"(confidence: {result.confidence:.3f})"
+                )
                 print("✅ Domain adaptation completed successfully")
             else:
                 print(f"Training failed: {training_results['error']}")
@@ -189,8 +203,7 @@ async def cost_monitoring_example():
     print("\n=== Example 4: Cost Monitoring ===")
 
     engine = await create_enhanced_sentiment_engine(
-        cost_preference="balanced",
-        budget_limit=8.0
+        cost_preference="balanced", budget_limit=8.0
     )
 
     try:
@@ -200,7 +213,7 @@ async def cost_monitoring_example():
             "Poor quality, wouldn't buy again.",
             "Average experience, nothing special.",
             "Exceeded my expectations!",
-            "Terrible customer service."
+            "Terrible customer service.",
         ]
 
         # Mix of different cost preferences
@@ -232,7 +245,7 @@ async def cost_monitoring_example():
 
         # Optimize for lower budget
         optimization = await engine.optimize_for_cost(target_budget=5.0)
-        print(f"\nBudget Optimization:")
+        print("\nBudget Optimization:")
         for rec in optimization["recommendations"]:
             print(f"  • {rec}")
 
@@ -247,8 +260,7 @@ async def business_context_example():
     print("\n=== Example 5: Business Context Analysis ===")
 
     engine = await create_enhanced_sentiment_engine(
-        cost_preference="balanced",
-        budget_limit=12.0
+        cost_preference="balanced", budget_limit=12.0
     )
 
     try:
@@ -259,7 +271,7 @@ async def business_context_example():
             "Had issues with ExampleBrand customer support.",
             "ExampleBrand is the industry leader in innovation.",
             "Switched from ExampleBrand to a better alternative.",
-            "ExampleBrand's new product launch exceeded expectations."
+            "ExampleBrand's new product launch exceeded expectations.",
         ]
 
         # Analyze with business context
@@ -267,27 +279,29 @@ async def business_context_example():
             brand="ExampleBrand",
             industry="technology",
             source="social_media",
-            competitive_context=True
+            competitive_context=True,
         )
 
         print("Business Context Analysis Results:")
         for text in business_texts:
             result = await engine.analyze_cost_effective(
-                text=text,
-                cost_preference="balanced",
-                context=context
+                text=text, cost_preference="balanced", context=context
             )
 
             print(f"  Text: {text[:50]}...")
-            print(f"  Sentiment: {result.polarity.value} "
-                  f"(confidence: {result.confidence:.3f})")
+            print(
+                f"  Sentiment: {result.polarity.value} "
+                f"(confidence: {result.confidence:.3f})"
+            )
             print(f"  Context: {result.context_type.value}")
 
             # Show business metadata if available
             if "business_analysis" in result.metadata:
                 business_data = result.metadata["business_analysis"]
-                print(f"  Business signals: +{business_data.get('positive_signals', 0)} "
-                      f"-{business_data.get('negative_signals', 0)}")
+                print(
+                    f"  Business signals: +{business_data.get('positive_signals', 0)} "
+                    f"-{business_data.get('negative_signals', 0)}"
+                )
             print()
 
         print("✅ Business context analysis completed successfully")
@@ -301,8 +315,7 @@ async def performance_comparison():
     print("\n=== Example 6: Performance Comparison ===")
 
     engine = await create_enhanced_sentiment_engine(
-        cost_preference="balanced",
-        budget_limit=10.0
+        cost_preference="balanced", budget_limit=10.0
     )
 
     try:
@@ -316,8 +329,7 @@ async def performance_comparison():
             start_time = asyncio.get_event_loop().time()
 
             result = await engine.analyze_cost_effective(
-                text=test_text,
-                cost_preference=provider
+                text=test_text, cost_preference=provider
             )
 
             end_time = asyncio.get_event_loop().time()
@@ -327,19 +339,23 @@ async def performance_comparison():
                 "sentiment": result.polarity.value,
                 "confidence": result.confidence,
                 "processing_time": processing_time,
-                "cost_metrics": result.metadata.get("cost_metrics", {})
+                "cost_metrics": result.metadata.get("cost_metrics", {}),
             }
 
         # Display comparison
         print("Provider Performance Comparison:")
-        print(f"{'Provider':<15} {'Sentiment':<10} {'Confidence':<12} {'Time (s)':<10} {'Memory (MB)':<12}")
+        print(
+            f"{'Provider':<15} {'Sentiment':<10} {'Confidence':<12} {'Time (s)':<10} {'Memory (MB)':<12}"
+        )
         print("-" * 70)
 
         for provider, data in results.items():
             memory_usage = data["cost_metrics"].get("memory_usage_mb", 0)
-            print(f"{provider:<15} {data['sentiment']:<10} "
-                  f"{data['confidence']:<12.3f} {data['processing_time']:<10.3f} "
-                  f"{memory_usage:<12.1f}")
+            print(
+                f"{provider:<15} {data['sentiment']:<10} "
+                f"{data['confidence']:<12.3f} {data['processing_time']:<10.3f} "
+                f"{memory_usage:<12.1f}"
+            )
 
         # Show cost report
         cost_report = engine.get_cost_report("session")
@@ -377,6 +393,7 @@ async def main():
     except Exception as e:
         print(f"❌ Error running examples: {e}")
         import traceback
+
         traceback.print_exc()
 
 

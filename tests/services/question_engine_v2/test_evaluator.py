@@ -3,7 +3,9 @@ import types
 
 import pytest
 
-from app.services.question_engine_v2.evaluator.answer_eval import AnswerSatisfactionEvaluator
+from app.services.question_engine_v2.evaluator.answer_eval import (
+    AnswerSatisfactionEvaluator,
+)
 from app.services.question_engine_v2.schemas import PersonaMode, PersonaResolution
 
 
@@ -70,7 +72,9 @@ def persona():
 
 @pytest.mark.asyncio
 async def test_evaluator_calls_router_with_schema(persona):
-    router = _StubRouter({"status": "satisfied", "score": 0.9, "rationale": "Addresses ROI"})
+    router = _StubRouter(
+        {"status": "satisfied", "score": 0.9, "rationale": "Addresses ROI"}
+    )
     evaluator = AnswerSatisfactionEvaluator(router=router, model="openai:gpt-score")
 
     result = await evaluator.evaluate(
@@ -85,7 +89,11 @@ async def test_evaluator_calls_router_with_schema(persona):
     assert router.calls
     prompt, schema, kwargs = router.calls[0]
     assert "fear_of_overpaying" in prompt
-    assert schema["properties"]["status"]["enum"] == ["satisfied", "partial", "unsatisfied"]
+    assert schema["properties"]["status"]["enum"] == [
+        "satisfied",
+        "partial",
+        "unsatisfied",
+    ]
     assert kwargs["model"] == "openai:gpt-score"
 
 

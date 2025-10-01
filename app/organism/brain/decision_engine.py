@@ -5,22 +5,22 @@ Makes intelligent decisions about system adaptations, optimizations,
 and responses based on insights and patterns.
 """
 
-import asyncio
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from app.utils.logger import get_logger
-from app.organism.control.master_switch import get_organic_control, FeatureCategory
 from app.organism.control.decorators import register_organic_feature
+from app.organism.control.master_switch import FeatureCategory
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class DecisionType(str, Enum):
     """Types of decisions the engine can make"""
+
     OPTIMIZATION = "optimization"
     ADAPTATION = "adaptation"
     HEALING = "healing"
@@ -30,6 +30,7 @@ class DecisionType(str, Enum):
 
 class DecisionPriority(str, Enum):
     """Priority levels for decisions"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -39,6 +40,7 @@ class DecisionPriority(str, Enum):
 @dataclass
 class DecisionContext:
     """Context for making a decision"""
+
     trigger_event: str
     system_state: Dict[str, Any]
     available_resources: Dict[str, float]
@@ -50,6 +52,7 @@ class DecisionContext:
 @dataclass
 class DecisionOption:
     """A potential decision option"""
+
     id: str
     name: str
     description: str
@@ -66,6 +69,7 @@ class DecisionOption:
 @dataclass
 class Decision:
     """A made decision with execution plan"""
+
     id: str
     option: DecisionOption
     priority: DecisionPriority
@@ -103,7 +107,7 @@ class DecisionEngine:
             "decisions_made": 0,
             "successful_decisions": 0,
             "average_decision_time": 0.0,
-            "total_impact": 0.0
+            "total_impact": 0.0,
         }
 
         logger.info("Decision Engine initialized")
@@ -145,7 +149,7 @@ class DecisionEngine:
                         prerequisites=["performance_data_available"],
                         risks=["temporary_slowdown"],
                         benefits=["improved_response_times", "reduced_load"],
-                        execution_time=30.0
+                        execution_time=30.0,
                     ),
                     DecisionOption(
                         id="query_optimization",
@@ -158,8 +162,8 @@ class DecisionEngine:
                         prerequisites=["query_analysis_available"],
                         risks=["query_changes"],
                         benefits=["faster_queries", "reduced_db_load"],
-                        execution_time=60.0
-                    )
+                        execution_time=60.0,
+                    ),
                 ],
                 DecisionType.ADAPTATION: [
                     DecisionOption(
@@ -173,7 +177,7 @@ class DecisionEngine:
                         prerequisites=["load_monitoring"],
                         risks=["over_provisioning"],
                         benefits=["improved_performance", "cost_optimization"],
-                        execution_time=5.0
+                        execution_time=5.0,
                     )
                 ],
                 DecisionType.HEALING: [
@@ -188,7 +192,7 @@ class DecisionEngine:
                         prerequisites=["error_detection"],
                         risks=["false_positives"],
                         benefits=["improved_reliability", "reduced_downtime"],
-                        execution_time=10.0
+                        execution_time=10.0,
                     )
                 ],
                 DecisionType.PREVENTION: [
@@ -203,9 +207,9 @@ class DecisionEngine:
                         prerequisites=["monitoring_system"],
                         risks=["increased_overhead"],
                         benefits=["early_detection", "prevention"],
-                        execution_time=15.0
+                        execution_time=15.0,
                     )
-                ]
+                ],
             }
 
         except Exception as e:
@@ -235,7 +239,9 @@ class DecisionEngine:
                     # Check if option is applicable given context
                     if self._is_option_applicable(template, context):
                         # Customize option based on context
-                        customized_option = await self._customize_option(template, context)
+                        customized_option = await self._customize_option(
+                            template, context
+                        )
                         options.append(customized_option)
 
             # Sort options by estimated impact and confidence
@@ -247,7 +253,9 @@ class DecisionEngine:
             logger.error(f"Error analyzing situation: {e}")
             return []
 
-    def _determine_relevant_decision_types(self, context: DecisionContext) -> List[DecisionType]:
+    def _determine_relevant_decision_types(
+        self, context: DecisionContext
+    ) -> List[DecisionType]:
         """Determine which decision types are relevant for the context"""
         relevant_types = []
 
@@ -271,7 +279,9 @@ class DecisionEngine:
         # Remove duplicates while preserving order
         return list(dict.fromkeys(relevant_types))
 
-    def _is_option_applicable(self, option: DecisionOption, context: DecisionContext) -> bool:
+    def _is_option_applicable(
+        self, option: DecisionOption, context: DecisionContext
+    ) -> bool:
         """Check if a decision option is applicable given the context"""
         try:
             # Check prerequisites
@@ -296,7 +306,9 @@ class DecisionEngine:
             logger.error(f"Error checking option applicability: {e}")
             return False
 
-    async def _customize_option(self, template: DecisionOption, context: DecisionContext) -> DecisionOption:
+    async def _customize_option(
+        self, template: DecisionOption, context: DecisionContext
+    ) -> DecisionOption:
         """Customize a template option based on context"""
         try:
             # Adjust confidence based on historical success rate
@@ -325,7 +337,7 @@ class DecisionEngine:
                 prerequisites=template.prerequisites,
                 risks=template.risks,
                 benefits=template.benefits,
-                execution_time=template.execution_time
+                execution_time=template.execution_time,
             )
 
         except Exception as e:
@@ -333,9 +345,7 @@ class DecisionEngine:
             return template
 
     async def make_decision(
-        self,
-        options: List[DecisionOption],
-        context: DecisionContext
+        self, options: List[DecisionOption], context: DecisionContext
     ) -> Optional[Decision]:
         """
         Make a decision from available options.
@@ -384,7 +394,7 @@ class DecisionEngine:
                 execution_plan=execution_plan,
                 rollback_plan=rollback_plan,
                 monitoring_criteria=monitoring_criteria,
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             )
 
             # Record decision
@@ -395,11 +405,14 @@ class DecisionEngine:
             decision_time = time.time() - start_time
             self._metrics["decisions_made"] += 1
             self._metrics["average_decision_time"] = (
-                (self._metrics["average_decision_time"] * (self._metrics["decisions_made"] - 1) + decision_time) /
-                self._metrics["decisions_made"]
-            )
+                self._metrics["average_decision_time"]
+                * (self._metrics["decisions_made"] - 1)
+                + decision_time
+            ) / self._metrics["decisions_made"]
 
-            logger.info(f"Decision made: {decision.option.name} (Priority: {priority.value})")
+            logger.info(
+                f"Decision made: {decision.option.name} (Priority: {priority.value})"
+            )
             return decision
 
         except Exception as e:
@@ -407,9 +420,7 @@ class DecisionEngine:
             return None
 
     async def _score_options(
-        self,
-        options: List[DecisionOption],
-        context: DecisionContext
+        self, options: List[DecisionOption], context: DecisionContext
     ) -> List[DecisionOption]:
         """Score and rank decision options"""
         try:
@@ -429,7 +440,9 @@ class DecisionEngine:
                 history_score = historical_success * 0.1
 
                 # Composite score
-                score = impact_score + confidence_score + efficiency_score + history_score
+                score = (
+                    impact_score + confidence_score + efficiency_score + history_score
+                )
 
                 # Apply context adjustments
                 if context.time_pressure > 0.8 and option.execution_time > 60:
@@ -447,7 +460,7 @@ class DecisionEngine:
 
             # Remove temporary score attribute
             for option in scored_options:
-                delattr(option, '_score')
+                delattr(option, "_score")
 
             return scored_options
 
@@ -455,7 +468,9 @@ class DecisionEngine:
             logger.error(f"Error scoring options: {e}")
             return options
 
-    def _determine_priority(self, option: DecisionOption, context: DecisionContext) -> DecisionPriority:
+    def _determine_priority(
+        self, option: DecisionOption, context: DecisionContext
+    ) -> DecisionPriority:
         """Determine priority for a decision"""
         try:
             # Base priority on decision type
@@ -464,7 +479,7 @@ class DecisionEngine:
                 DecisionType.PREVENTION: DecisionPriority.MEDIUM,
                 DecisionType.OPTIMIZATION: DecisionPriority.MEDIUM,
                 DecisionType.ADAPTATION: DecisionPriority.MEDIUM,
-                DecisionType.ENHANCEMENT: DecisionPriority.LOW
+                DecisionType.ENHANCEMENT: DecisionPriority.LOW,
             }.get(option.decision_type, DecisionPriority.MEDIUM)
 
             # Adjust based on context
@@ -487,9 +502,7 @@ class DecisionEngine:
             return DecisionPriority.MEDIUM
 
     async def _create_execution_plan(
-        self,
-        option: DecisionOption,
-        context: DecisionContext
+        self, option: DecisionOption, context: DecisionContext
     ) -> List[Dict[str, Any]]:
         """Create execution plan for a decision"""
         try:
@@ -500,24 +513,24 @@ class DecisionEngine:
                 plan = [
                     {"step": "prepare_optimization", "timeout": 10},
                     {"step": "apply_optimization", "timeout": option.execution_time},
-                    {"step": "validate_optimization", "timeout": 20}
+                    {"step": "validate_optimization", "timeout": 20},
                 ]
             elif option.decision_type == DecisionType.HEALING:
                 plan = [
                     {"step": "diagnose_issue", "timeout": 5},
                     {"step": "apply_healing", "timeout": option.execution_time},
-                    {"step": "verify_healing", "timeout": 10}
+                    {"step": "verify_healing", "timeout": 10},
                 ]
             elif option.decision_type == DecisionType.ADAPTATION:
                 plan = [
                     {"step": "prepare_adaptation", "timeout": 5},
                     {"step": "implement_adaptation", "timeout": option.execution_time},
-                    {"step": "monitor_adaptation", "timeout": 30}
+                    {"step": "monitor_adaptation", "timeout": 30},
                 ]
             else:
                 plan = [
                     {"step": "execute_decision", "timeout": option.execution_time},
-                    {"step": "validate_execution", "timeout": 10}
+                    {"step": "validate_execution", "timeout": 10},
                 ]
 
             return plan
@@ -527,9 +540,7 @@ class DecisionEngine:
             return [{"step": "execute_decision", "timeout": 60}]
 
     async def _create_rollback_plan(
-        self,
-        option: DecisionOption,
-        context: DecisionContext
+        self, option: DecisionOption, context: DecisionContext
     ) -> List[Dict[str, Any]]:
         """Create rollback plan for a decision"""
         try:
@@ -537,7 +548,7 @@ class DecisionEngine:
                 {"step": "detect_failure", "timeout": 5},
                 {"step": "stop_execution", "timeout": 5},
                 {"step": "restore_previous_state", "timeout": 30},
-                {"step": "verify_rollback", "timeout": 10}
+                {"step": "verify_rollback", "timeout": 10},
             ]
 
             return rollback_plan
@@ -553,19 +564,36 @@ class DecisionEngine:
                 "success_indicators": [],
                 "failure_indicators": [],
                 "performance_metrics": [],
-                "timeout": option.execution_time * 2
+                "timeout": option.execution_time * 2,
             }
 
             # Add criteria based on decision type
             if option.decision_type == DecisionType.OPTIMIZATION:
-                criteria["success_indicators"] = ["improved_performance", "reduced_resource_usage"]
-                criteria["failure_indicators"] = ["performance_degradation", "increased_errors"]
-                criteria["performance_metrics"] = ["response_time", "cpu_usage", "memory_usage"]
+                criteria["success_indicators"] = [
+                    "improved_performance",
+                    "reduced_resource_usage",
+                ]
+                criteria["failure_indicators"] = [
+                    "performance_degradation",
+                    "increased_errors",
+                ]
+                criteria["performance_metrics"] = [
+                    "response_time",
+                    "cpu_usage",
+                    "memory_usage",
+                ]
 
             elif option.decision_type == DecisionType.HEALING:
                 criteria["success_indicators"] = ["error_reduction", "system_stability"]
-                criteria["failure_indicators"] = ["continued_errors", "system_instability"]
-                criteria["performance_metrics"] = ["error_rate", "uptime", "recovery_time"]
+                criteria["failure_indicators"] = [
+                    "continued_errors",
+                    "system_instability",
+                ]
+                criteria["performance_metrics"] = [
+                    "error_rate",
+                    "uptime",
+                    "recovery_time",
+                ]
 
             return criteria
 
@@ -577,7 +605,7 @@ class DecisionEngine:
         self,
         selected_option: DecisionOption,
         context: DecisionContext,
-        all_options: List[DecisionOption]
+        all_options: List[DecisionOption],
     ) -> str:
         """Generate human-readable reasoning for the decision"""
         try:
@@ -585,17 +613,23 @@ class DecisionEngine:
                 f"Selected '{selected_option.name}' based on analysis of {len(all_options)} options.",
                 f"Estimated impact: {selected_option.estimated_impact:.2f}",
                 f"Confidence level: {selected_option.confidence:.2f}",
-                f"Decision type: {selected_option.decision_type.value}"
+                f"Decision type: {selected_option.decision_type.value}",
             ]
 
             if context.time_pressure > 0.7:
-                reasoning_parts.append("High time pressure influenced rapid decision-making.")
+                reasoning_parts.append(
+                    "High time pressure influenced rapid decision-making."
+                )
 
             if context.risk_tolerance < 0.3:
-                reasoning_parts.append("Low risk tolerance favored conservative options.")
+                reasoning_parts.append(
+                    "Low risk tolerance favored conservative options."
+                )
 
             if selected_option.benefits:
-                reasoning_parts.append(f"Expected benefits: {', '.join(selected_option.benefits)}")
+                reasoning_parts.append(
+                    f"Expected benefits: {', '.join(selected_option.benefits)}"
+                )
 
             return " ".join(reasoning_parts)
 
@@ -613,7 +647,7 @@ class DecisionEngine:
                 available_resources={"cpu": 0.8, "memory": 0.8, "io": 0.8},
                 constraints=[],
                 time_pressure=0.3,
-                risk_tolerance=0.7
+                risk_tolerance=0.7,
             )
 
             # Analyze situation and make decision
@@ -628,15 +662,23 @@ class DecisionEngine:
                     id=decision.id,
                     name=decision.option.name,
                     description=decision.option.description,
-                    priority=1 if decision.priority == DecisionPriority.CRITICAL else
-                            2 if decision.priority == DecisionPriority.HIGH else
-                            3 if decision.priority == DecisionPriority.MEDIUM else 4,
+                    priority=1
+                    if decision.priority == DecisionPriority.CRITICAL
+                    else 2
+                    if decision.priority == DecisionPriority.HIGH
+                    else 3
+                    if decision.priority == DecisionPriority.MEDIUM
+                    else 4,
                     estimated_impact=decision.option.estimated_impact,
                     risk_level=len(decision.option.risks) / 5.0,  # Normalize to 0-1
                     prerequisites=decision.option.prerequisites,
-                    actions=[{"step": step["step"], "timeout": step["timeout"]}
-                           for step in decision.execution_plan],
-                    rollback_plan={"steps": decision.rollback_plan} if decision.rollback_plan else None
+                    actions=[
+                        {"step": step["step"], "timeout": step["timeout"]}
+                        for step in decision.execution_plan
+                    ],
+                    rollback_plan={"steps": decision.rollback_plan}
+                    if decision.rollback_plan
+                    else None,
                 )
 
                 return plan
@@ -647,7 +689,9 @@ class DecisionEngine:
             logger.error(f"Error creating adaptation plan: {e}")
             return None
 
-    def record_decision_outcome(self, decision_id: str, success: bool, actual_impact: float):
+    def record_decision_outcome(
+        self, decision_id: str, success: bool, actual_impact: float
+    ):
         """Record the outcome of a decision for learning"""
         try:
             if decision_id not in self._decisions_made:
@@ -658,25 +702,31 @@ class DecisionEngine:
 
             # Update success rate
             current_success = self._success_rate.get(decision_type, 0.5)
-            total_decisions = sum(1 for d in self._decision_history if d.option.decision_type == decision_type)
+            total_decisions = sum(
+                1
+                for d in self._decision_history
+                if d.option.decision_type == decision_type
+            )
 
             if total_decisions > 0:
                 self._success_rate[decision_type] = (
-                    (current_success * (total_decisions - 1) + (1.0 if success else 0.0)) / total_decisions
-                )
+                    current_success * (total_decisions - 1) + (1.0 if success else 0.0)
+                ) / total_decisions
 
             # Update average impact
             current_impact = self._average_impact.get(decision_type, 0.0)
             self._average_impact[decision_type] = (
-                (current_impact * (total_decisions - 1) + actual_impact) / total_decisions
-            )
+                current_impact * (total_decisions - 1) + actual_impact
+            ) / total_decisions
 
             # Update global metrics
             if success:
                 self._metrics["successful_decisions"] += 1
             self._metrics["total_impact"] += actual_impact
 
-            logger.debug(f"Decision outcome recorded: {decision_id} - Success: {success}, Impact: {actual_impact}")
+            logger.debug(
+                f"Decision outcome recorded: {decision_id} - Success: {success}, Impact: {actual_impact}"
+            )
 
         except Exception as e:
             logger.error(f"Error recording decision outcome: {e}")
@@ -685,7 +735,8 @@ class DecisionEngine:
         """Get currently active decisions"""
         current_time = datetime.now(timezone.utc)
         return [
-            decision for decision in self._decisions_made.values()
+            decision
+            for decision in self._decisions_made.values()
             if decision.expires_at is None or decision.expires_at > current_time
         ]
 
@@ -717,5 +768,7 @@ class DecisionEngine:
             "active_decisions": len(self.get_active_decisions()),
             "total_decisions": len(self._decision_history),
             "performance_metrics": self.get_performance_metrics(),
-            "decision_templates": {dt.value: len(opts) for dt, opts in self._decision_templates.items()}
+            "decision_templates": {
+                dt.value: len(opts) for dt, opts in self._decision_templates.items()
+            },
         }

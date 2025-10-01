@@ -40,7 +40,7 @@ def enforce_constraints(
 
     total_quota = quotas.total if quotas and quotas.total else None
     if total_quota is not None:
-        constrained = constrained[: total_quota]
+        constrained = constrained[:total_quota]
 
     return constrained
 
@@ -54,7 +54,9 @@ def _dedupe_questions(questions: Iterable[Question]) -> List[Question]:
     return list(seen.values())
 
 
-def _enforce_length(questions: Iterable[Question], *, max_length: int) -> List[Question]:
+def _enforce_length(
+    questions: Iterable[Question], *, max_length: int
+) -> List[Question]:
     if max_length <= 0:
         return list(questions)
     filtered: List[Question] = []

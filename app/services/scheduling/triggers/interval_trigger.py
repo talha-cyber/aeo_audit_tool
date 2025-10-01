@@ -338,7 +338,11 @@ class IntervalTrigger(BaseTrigger):
         total = self.total_seconds
 
         def _format(value: float, suffix: str) -> str:
-            return f"{int(value)}{suffix}" if value.is_integer() else f"{value:.1f}{suffix}"
+            return (
+                f"{int(value)}{suffix}"
+                if value.is_integer()
+                else f"{value:.1f}{suffix}"
+            )
 
         if total < 60:
             return _format(total, "s")

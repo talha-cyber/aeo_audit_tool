@@ -140,7 +140,9 @@ class LLMRouter:
 
         errors = sorted(validator.iter_errors(candidate), key=lambda e: e.path)
         if errors:
-            messages = [f"{'/'.join(map(str, err.path))}: {err.message}" for err in errors]
+            messages = [
+                f"{'/'.join(map(str, err.path))}: {err.message}" for err in errors
+            ]
             return None, "; ".join(messages)
 
         return candidate, None
@@ -152,7 +154,9 @@ class LLMRouter:
                 await client.__aexit__(None, None, None)
             except Exception:  # pragma: no cover - best effort cleanup
                 logger.warning(
-                    "LLM client close failed", provider=client.platform_name, exc_info=True
+                    "LLM client close failed",
+                    provider=client.platform_name,
+                    exc_info=True,
                 )
         self._clients.clear()
 
@@ -172,7 +176,9 @@ class LLMRouter:
         self._clients[provider_key] = client
         return client
 
-    def _resolve_provider_target(self, provider: Optional[str], model: Optional[str]) -> Tuple[str, Optional[str]]:
+    def _resolve_provider_target(
+        self, provider: Optional[str], model: Optional[str]
+    ) -> Tuple[str, Optional[str]]:
         if provider:
             if ":" in provider:
                 provider_key, model_hint = provider.split(":", 1)

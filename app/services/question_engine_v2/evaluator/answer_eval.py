@@ -53,7 +53,9 @@ class AnswerSatisfactionEvaluator:
     ) -> Dict[str, Any]:
         """Evaluate LLM response satisfaction for a persona."""
         if not self._router:
-            raise RuntimeError("AnswerSatisfactionEvaluator requires an LLMRouter instance")
+            raise RuntimeError(
+                "AnswerSatisfactionEvaluator requires an LLMRouter instance"
+            )
 
         persona_data = self._persona_fields(persona)
         prompt = self._template.render(
@@ -96,7 +98,9 @@ class AnswerSatisfactionEvaluator:
         )
         return result
 
-    def _persona_fields(self, persona: PersonaResolution | Dict[str, Any]) -> Dict[str, Any]:
+    def _persona_fields(
+        self, persona: PersonaResolution | Dict[str, Any]
+    ) -> Dict[str, Any]:
         if isinstance(persona, PersonaResolution):
             data = persona.model_dump()
         else:

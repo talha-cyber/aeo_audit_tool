@@ -2,6 +2,7 @@
 
 import clsx from 'clsx';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui';
@@ -22,7 +23,7 @@ const navigation = [
   { label: 'Embeds', href: '/embeds', helper: 'Client-ready widgets' },
   { label: 'Settings', href: '/settings', helper: 'Branding, members, billing' },
   { label: 'Portal', href: '/portal', helper: 'Client read-only mode' }
-];
+] satisfies { label: string; href: Route; helper: string }[];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
@@ -52,7 +53,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               return (
                 <li key={item.href}>
                   <Link
-                    href={item.href}
+                    href={item.href as Route}
                     className={clsx(
                       'block rounded-lg px-4 py-3 transition-colors',
                       active

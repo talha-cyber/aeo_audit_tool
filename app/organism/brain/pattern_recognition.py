@@ -6,23 +6,24 @@ user behavior patterns, error patterns, and system health patterns.
 """
 
 import asyncio
-import time
 import statistics
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from app.utils.logger import get_logger
 from app.organism.control.decorators import register_organic_feature
 from app.organism.control.master_switch import FeatureCategory
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class PatternType(str, Enum):
     """Types of patterns that can be recognized"""
+
     PERFORMANCE = "performance"
     ERROR = "error"
     USER_BEHAVIOR = "user_behavior"
@@ -35,15 +36,17 @@ class PatternType(str, Enum):
 
 class PatternConfidence(str, Enum):
     """Confidence levels for pattern recognition"""
-    LOW = "low"          # < 0.3
-    MEDIUM = "medium"    # 0.3 - 0.7
-    HIGH = "high"        # 0.7 - 0.9
+
+    LOW = "low"  # < 0.3
+    MEDIUM = "medium"  # 0.3 - 0.7
+    HIGH = "high"  # 0.7 - 0.9
     VERY_HIGH = "very_high"  # > 0.9
 
 
 @dataclass
 class DataPoint:
     """Single data point for pattern analysis"""
+
     timestamp: float
     value: float
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -54,6 +57,7 @@ class DataPoint:
 @dataclass
 class Pattern:
     """Recognized pattern"""
+
     id: str
     name: str
     type: PatternType
@@ -69,6 +73,7 @@ class Pattern:
 @dataclass
 class PatternTrend:
     """Trend analysis for a pattern"""
+
     direction: str  # "increasing", "decreasing", "stable", "cyclical"
     magnitude: float
     velocity: float
@@ -116,7 +121,7 @@ class PatternRecognizer:
             "patterns_detected": 0,
             "patterns_validated": 0,
             "predictions_made": 0,
-            "accuracy_score": 0.0
+            "accuracy_score": 0.0,
         }
 
         logger.info("Pattern Recognition Engine initialized")
@@ -130,7 +135,9 @@ class PatternRecognizer:
         # Start background pattern detection
         asyncio.create_task(self._pattern_detection_loop())
 
-    def add_data_point(self, stream_name: str, value: float, metadata: Optional[Dict] = None):
+    def add_data_point(
+        self, stream_name: str, value: float, metadata: Optional[Dict] = None
+    ):
         """
         Add a data point to a stream for pattern analysis.
 
@@ -147,7 +154,7 @@ class PatternRecognizer:
             value=value,
             metadata=metadata or {},
             component=metadata.get("component", "unknown") if metadata else "unknown",
-            category=metadata.get("category", "general") if metadata else "general"
+            category=metadata.get("category", "general") if metadata else "general",
         )
 
         self._data_streams[stream_name].append(data_point)
@@ -195,11 +202,16 @@ class PatternRecognizer:
         except Exception as e:
             logger.error(f"Error analyzing stream {stream_name}: {e}")
 
-    async def _detect_performance_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_performance_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect performance-related patterns"""
         patterns = []
 
-        if "performance" not in stream_name.lower() and "latency" not in stream_name.lower():
+        if (
+            "performance" not in stream_name.lower()
+            and "latency" not in stream_name.lower()
+        ):
             return patterns
 
         try:
@@ -223,13 +235,13 @@ class PatternRecognizer:
                         characteristics={
                             "degradation_factor": recent_avg / historical_avg,
                             "recent_avg": recent_avg,
-                            "historical_avg": historical_avg
+                            "historical_avg": historical_avg,
                         },
                         suggested_actions=[
                             "Investigate recent changes",
                             "Check resource utilization",
-                            "Review error logs"
-                        ]
+                            "Review error logs",
+                        ],
                     )
                     patterns.append(pattern)
 
@@ -250,13 +262,15 @@ class PatternRecognizer:
                         data_points=data_points[-10:],
                         characteristics={
                             "spike_count": len(spikes),
-                            "spike_magnitude": max(spikes) / mean_val if mean_val > 0 else 0
+                            "spike_magnitude": max(spikes) / mean_val
+                            if mean_val > 0
+                            else 0,
                         },
                         suggested_actions=[
                             "Identify spike triggers",
                             "Implement load balancing",
-                            "Scale resources"
-                        ]
+                            "Scale resources",
+                        ],
                     )
                     patterns.append(pattern)
 
@@ -265,7 +279,9 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_error_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_error_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect error-related patterns"""
         patterns = []
 
@@ -302,13 +318,13 @@ class PatternRecognizer:
                         characteristics={
                             "burst_count": len(bursts),
                             "threshold": burst_threshold,
-                            "max_errors": max(bursts)
+                            "max_errors": max(bursts),
                         },
                         suggested_actions=[
                             "Investigate error causes",
                             "Implement circuit breakers",
-                            "Review error handling"
-                        ]
+                            "Review error handling",
+                        ],
                     )
                     patterns.append(pattern)
 
@@ -317,7 +333,9 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_user_behavior_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_user_behavior_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect user behavior patterns"""
         patterns = []
 
@@ -329,11 +347,16 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_system_health_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_system_health_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect system health patterns"""
         patterns = []
 
-        if "health" not in stream_name.lower() and "resource" not in stream_name.lower():
+        if (
+            "health" not in stream_name.lower()
+            and "resource" not in stream_name.lower()
+        ):
             return patterns
 
         # Implement system health pattern detection
@@ -341,7 +364,9 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_usage_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_usage_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect usage patterns"""
         patterns = []
 
@@ -350,7 +375,9 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_temporal_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_temporal_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect time-based patterns"""
         patterns = []
 
@@ -390,13 +417,13 @@ class PatternRecognizer:
                             characteristics={
                                 "pattern_type": "hourly",
                                 "pattern_strength": pattern_strength,
-                                "hour_variations": hour_variations
+                                "hour_variations": hour_variations,
                             },
                             suggested_actions=[
                                 "Optimize for peak hours",
                                 "Implement predictive scaling",
-                                "Schedule maintenance during low-usage hours"
-                            ]
+                                "Schedule maintenance during low-usage hours",
+                            ],
                         )
                         patterns.append(pattern)
 
@@ -405,7 +432,9 @@ class PatternRecognizer:
 
         return patterns
 
-    async def _detect_anomaly_patterns(self, stream_name: str, data_points: List[DataPoint]) -> List[Pattern]:
+    async def _detect_anomaly_patterns(
+        self, stream_name: str, data_points: List[DataPoint]
+    ) -> List[Pattern]:
         """Detect anomalous patterns"""
         patterns = []
 
@@ -433,13 +462,13 @@ class PatternRecognizer:
                         characteristics={
                             "outlier_count": len(outliers),
                             "threshold": 3 * std_val,
-                            "mean_value": mean_val
+                            "mean_value": mean_val,
                         },
                         suggested_actions=[
                             "Investigate anomaly causes",
                             "Implement anomaly detection",
-                            "Review data quality"
-                        ]
+                            "Review data quality",
+                        ],
                     )
                     patterns.append(pattern)
 
@@ -473,15 +502,22 @@ class PatternRecognizer:
             # Check if this pattern already exists
             existing_pattern = None
             for existing in self._recognized_patterns.values():
-                if (existing.name == pattern.name and
-                    existing.type == pattern.type and
-                    (datetime.now(timezone.utc) - existing.discovered_at).total_seconds() < 3600):
+                if (
+                    existing.name == pattern.name
+                    and existing.type == pattern.type
+                    and (
+                        datetime.now(timezone.utc) - existing.discovered_at
+                    ).total_seconds()
+                    < 3600
+                ):
                     existing_pattern = existing
                     break
 
             if existing_pattern:
                 # Update existing pattern
-                existing_pattern.confidence = max(existing_pattern.confidence, pattern.confidence)
+                existing_pattern.confidence = max(
+                    existing_pattern.confidence, pattern.confidence
+                )
                 existing_pattern.data_points.extend(pattern.data_points)
                 # Keep only recent data points
                 existing_pattern.data_points = existing_pattern.data_points[-50:]
@@ -491,7 +527,9 @@ class PatternRecognizer:
                 self._pattern_history.append(pattern)
                 self._stats["patterns_detected"] += 1
 
-                logger.info(f"New pattern detected: {pattern.name} (confidence: {pattern.confidence:.2f})")
+                logger.info(
+                    f"New pattern detected: {pattern.name} (confidence: {pattern.confidence:.2f})"
+                )
 
         except Exception as e:
             logger.error(f"Error registering pattern: {e}")
@@ -535,7 +573,9 @@ class PatternRecognizer:
             **self._stats,
             "active_patterns": len(self._recognized_patterns),
             "data_streams": len(self._data_streams),
-            "total_data_points": sum(len(stream) for stream in self._data_streams.values())
+            "total_data_points": sum(
+                len(stream) for stream in self._data_streams.values()
+            ),
         }
 
     async def shutdown(self):

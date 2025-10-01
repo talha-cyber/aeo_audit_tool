@@ -7,6 +7,7 @@ from typing import Dict, List, MutableMapping, Optional, Sequence, Type, TypeVar
 
 import yaml
 from pydantic import BaseModel, ValidationError
+
 from app.services.question_engine_v2.schemas import (
     ContextCatalogItem,
     DriverCatalogItem,
@@ -80,7 +81,11 @@ class PersonaExtractor:
                 voices=self._build_catalog(raw_voices, VoiceCatalogItem),
             )
         except ValidationError as exc:
-            logger.error("Persona catalog validation failed", mode=mode_enum.value, error=str(exc))
+            logger.error(
+                "Persona catalog validation failed",
+                mode=mode_enum.value,
+                error=str(exc),
+            )
             raise PersonaCatalogError("Invalid persona catalog format") from exc
 
         self._validate_catalog(catalog)
@@ -91,7 +96,9 @@ class PersonaExtractor:
         self,
         mode: PersonaMode | str,
         voices: Optional[Sequence[str]] = None,
-        selections: Optional[Sequence[PersonaSelection | MutableMapping[str, object]]] = None,
+        selections: Optional[
+            Sequence[PersonaSelection | MutableMapping[str, object]]
+        ] = None,
     ) -> List[PersonaResolution]:
         """Resolve personas from presets and explicit selections."""
         catalog = self.load_catalog(mode)
@@ -148,8 +155,12 @@ class PersonaExtractor:
         return {
             "mode": catalog.mode.value,
             "roles": {key: item.model_dump() for key, item in catalog.roles.items()},
-            "drivers": {key: item.model_dump() for key, item in catalog.drivers.items()},
-            "contexts": {key: item.model_dump() for key, item in catalog.contexts.items()},
+            "drivers": {
+                key: item.model_dump() for key, item in catalog.drivers.items()
+            },
+            "contexts": {
+                key: item.model_dump() for key, item in catalog.contexts.items()
+            },
             "voices": {key: item.model_dump() for key, item in catalog.voices.items()},
         }
 
@@ -162,7 +173,11 @@ class PersonaExtractor:
         self, catalog: PersonaCatalog, voice_name: str, preset: VoiceCatalogItem
     ) -> PersonaResolution:
         contexts = self._resolve_contexts(catalog, preset.contexts, preset.role)
-        emotional_anchor = catalog.drivers.get(preset.driver).emotional_anchor if preset.driver in catalog.drivers else None
+        emotional_anchor = (
+            catalog.drivers.get(preset.driver).emotional_anchor
+            if preset.driver in catalog.drivers
+            else None
+        )
         return PersonaResolution(
             mode=catalog.mode,
             role=preset.role,
@@ -218,7 +233,9 @@ class PersonaExtractor:
             return resolved
 
         default_ctx = (
-            catalog.roles.get(role).default_context_stage if role in catalog.roles else None
+            catalog.roles.get(role).default_context_stage
+            if role in catalog.roles
+            else None
         )
         if default_ctx and default_ctx in catalog.contexts:
             logger.info(
@@ -250,7 +267,9 @@ class PersonaExtractor:
 
     def _build_catalog(self, raw: dict, model: Type[TCatalog]) -> Dict[str, TCatalog]:
         if not isinstance(raw, dict):
-            raise PersonaCatalogError("Catalog file must contain a mapping at top level")
+            raise PersonaCatalogError(
+                "Catalog file must contain a mapping at top level"
+            )
         built: Dict[str, TCatalog] = {}
         for key, value in raw.items():
             try:

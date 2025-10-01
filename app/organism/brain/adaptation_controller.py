@@ -6,22 +6,23 @@ made by the central intelligence system.
 """
 
 import asyncio
-import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Callable, Tuple
-from dataclasses import dataclass
-from enum import Enum
 import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
-from app.utils.logger import get_logger
-from app.organism.control.master_switch import get_organic_control, FeatureCategory
 from app.organism.control.decorators import register_organic_feature
+from app.organism.control.master_switch import FeatureCategory
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class AdaptationStatus(str, Enum):
     """Status of adaptation execution"""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -31,6 +32,7 @@ class AdaptationStatus(str, Enum):
 
 class HealingType(str, Enum):
     """Types of healing actions"""
+
     ERROR_RECOVERY = "error_recovery"
     PERFORMANCE_OPTIMIZATION = "performance_optimization"
     RESOURCE_CLEANUP = "resource_cleanup"
@@ -41,6 +43,7 @@ class HealingType(str, Enum):
 @dataclass
 class AdaptationExecution:
     """Execution context for an adaptation"""
+
     id: str
     plan_id: str
     status: AdaptationStatus
@@ -56,6 +59,7 @@ class AdaptationExecution:
 @dataclass
 class HealingAction:
     """A healing action to be executed"""
+
     id: str
     healing_type: HealingType
     target_component: str
@@ -101,7 +105,7 @@ class AdaptationController:
             "adaptations_failed": 0,
             "adaptations_rolled_back": 0,
             "healing_actions_performed": 0,
-            "average_execution_time": 0.0
+            "average_execution_time": 0.0,
         }
 
         # Built-in healing actions
@@ -118,9 +122,7 @@ class AdaptationController:
             # Start execution thread
             self._running = True
             self._execution_thread = threading.Thread(
-                target=self._execution_loop,
-                daemon=True,
-                name="AdaptationController"
+                target=self._execution_loop, daemon=True, name="AdaptationController"
             )
             self._execution_thread.start()
 
@@ -143,7 +145,7 @@ class AdaptationController:
                 priority=1,
                 estimated_duration=30.0,
                 prerequisites=[],
-                success_criteria={"error_rate_reduction": 0.5}
+                success_criteria={"error_rate_reduction": 0.5},
             )
 
             # Performance optimization action
@@ -156,7 +158,7 @@ class AdaptationController:
                 priority=2,
                 estimated_duration=60.0,
                 prerequisites=[],
-                success_criteria={"performance_improvement": 0.2}
+                success_criteria={"performance_improvement": 0.2},
             )
 
             # Resource cleanup action
@@ -169,7 +171,7 @@ class AdaptationController:
                 priority=3,
                 estimated_duration=15.0,
                 prerequisites=[],
-                success_criteria={"memory_freed": 0.1}
+                success_criteria={"memory_freed": 0.1},
             )
 
         except Exception as e:
@@ -203,7 +205,8 @@ class AdaptationController:
         try:
             # Count active executions
             active_count = sum(
-                1 for exec in self._active_executions.values()
+                1
+                for exec in self._active_executions.values()
                 if exec.status == AdaptationStatus.IN_PROGRESS
             )
 
@@ -212,12 +215,15 @@ class AdaptationController:
 
             # Find pending executions
             pending_executions = [
-                exec for exec in self._active_executions.values()
+                exec
+                for exec in self._active_executions.values()
                 if exec.status == AdaptationStatus.PENDING
             ]
 
             # Start new executions up to limit
-            for execution in pending_executions[:self._max_concurrent_adaptations - active_count]:
+            for execution in pending_executions[
+                : self._max_concurrent_adaptations - active_count
+            ]:
                 await self._start_execution(execution)
 
         except Exception as e:
@@ -251,7 +257,7 @@ class AdaptationController:
                 "backup_current_state",
                 "apply_changes",
                 "validate_changes",
-                "cleanup"
+                "cleanup",
             ]
 
             for step in steps:
@@ -282,8 +288,8 @@ class AdaptationController:
                 current_avg = self._metrics["average_execution_time"]
                 total_executions = self._metrics["adaptations_executed"]
                 self._metrics["average_execution_time"] = (
-                    (current_avg * (total_executions - 1) + exec_time) / total_executions
-                )
+                    current_avg * (total_executions - 1) + exec_time
+                ) / total_executions
 
             logger.info(f"Adaptation execution completed successfully: {execution.id}")
 
@@ -307,11 +313,7 @@ class AdaptationController:
             logger.info(f"Rolling back adaptation: {execution.id}")
 
             # Simulate rollback steps
-            rollback_steps = [
-                "restore_backup",
-                "revert_changes",
-                "validate_rollback"
-            ]
+            rollback_steps = ["restore_backup", "revert_changes", "validate_rollback"]
 
             for step in rollback_steps:
                 logger.debug(f"Rollback step '{step}' for adaptation {execution.id}")
@@ -337,7 +339,9 @@ class AdaptationController:
                     elapsed_time = (current_time - execution.start_time).total_seconds()
 
                     if elapsed_time > self._execution_timeout:
-                        logger.warning(f"Adaptation execution timed out: {execution.id}")
+                        logger.warning(
+                            f"Adaptation execution timed out: {execution.id}"
+                        )
 
                         with self._lock:
                             execution.status = AdaptationStatus.FAILED
@@ -372,7 +376,7 @@ class AdaptationController:
                 steps_completed=[],
                 current_step=None,
                 error_message=None,
-                metrics={}
+                metrics={},
             )
 
             with self._lock:
@@ -390,8 +394,7 @@ class AdaptationController:
         try:
             # Sort healing actions by priority
             healing_actions = sorted(
-                self._healing_actions.values(),
-                key=lambda x: x.priority
+                self._healing_actions.values(), key=lambda x: x.priority
             )
 
             for action in healing_actions:
@@ -409,10 +412,14 @@ class AdaptationController:
 
                     # Validate success criteria
                     if self._validate_healing_success(action, result):
-                        logger.info(f"Healing action completed successfully: {action.id}")
+                        logger.info(
+                            f"Healing action completed successfully: {action.id}"
+                        )
                         self._metrics["healing_actions_performed"] += 1
                     else:
-                        logger.warning(f"Healing action did not meet success criteria: {action.id}")
+                        logger.warning(
+                            f"Healing action did not meet success criteria: {action.id}"
+                        )
 
                 except Exception as e:
                     logger.error(f"Healing action failed: {action.id} - {e}")
@@ -451,11 +458,7 @@ class AdaptationController:
             await asyncio.sleep(2)
 
             # Return recovery metrics
-            return {
-                "errors_recovered": 5,
-                "recovery_time": 2.0,
-                "success": True
-            }
+            return {"errors_recovered": 5, "recovery_time": 2.0, "success": True}
 
         except Exception as e:
             logger.error(f"Error recovery failed: {e}")
@@ -472,7 +475,7 @@ class AdaptationController:
             return {
                 "performance_improvement": 0.25,
                 "optimization_time": 3.0,
-                "success": True
+                "success": True,
             }
 
         except Exception as e:
@@ -487,11 +490,7 @@ class AdaptationController:
             # Simulate resource cleanup
             await asyncio.sleep(1)
 
-            return {
-                "memory_freed_mb": 128,
-                "cleanup_time": 1.0,
-                "success": True
-            }
+            return {"memory_freed_mb": 128, "cleanup_time": 1.0, "success": True}
 
         except Exception as e:
             logger.error(f"Resource cleanup failed: {e}")
@@ -517,11 +516,14 @@ class AdaptationController:
     def get_active_executions(self) -> List[AdaptationExecution]:
         """Get all active executions"""
         return [
-            exec for exec in self._active_executions.values()
+            exec
+            for exec in self._active_executions.values()
             if exec.status in [AdaptationStatus.PENDING, AdaptationStatus.IN_PROGRESS]
         ]
 
-    def get_execution_history(self, limit: Optional[int] = None) -> List[AdaptationExecution]:
+    def get_execution_history(
+        self, limit: Optional[int] = None
+    ) -> List[AdaptationExecution]:
         """Get execution history"""
         if limit:
             return self._execution_history[-limit:]
@@ -546,7 +548,9 @@ class AdaptationController:
 
             elif execution.status == AdaptationStatus.IN_PROGRESS:
                 # Set a flag to stop execution (would need coordination with execution logic)
-                logger.info(f"Cancellation requested for in-progress execution: {execution_id}")
+                logger.info(
+                    f"Cancellation requested for in-progress execution: {execution_id}"
+                )
                 return True
 
             return False
@@ -566,7 +570,9 @@ class AdaptationController:
         # Calculate success rate
         total_attempts = self._metrics["adaptations_executed"]
         if total_attempts > 0:
-            metrics["success_rate"] = self._metrics["adaptations_successful"] / total_attempts
+            metrics["success_rate"] = (
+                self._metrics["adaptations_successful"] / total_attempts
+            )
         else:
             metrics["success_rate"] = 0.0
 
@@ -579,7 +585,7 @@ class AdaptationController:
             "active_executions": len(self.get_active_executions()),
             "total_executions": len(self._execution_history),
             "healing_actions_available": len(self._healing_actions),
-            "performance_metrics": self.get_performance_metrics()
+            "performance_metrics": self.get_performance_metrics(),
         }
 
     async def shutdown(self):

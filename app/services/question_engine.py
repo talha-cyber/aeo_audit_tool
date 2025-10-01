@@ -11,6 +11,7 @@ from typing import List, Optional
 
 import structlog
 
+from app.core.config import settings
 from app.services import metrics
 from app.services.providers import (
     ProviderResult,
@@ -20,7 +21,6 @@ from app.services.providers import (
 )
 from app.services.providers.dynamic_provider import DynamicProvider
 from app.services.providers.template_provider import TemplateProvider
-from app.core.config import settings
 from app.services.question_engine_v2 import build_default_engine
 from app.services.question_engine_v2.engine import QuestionEngineV2
 from app.services.question_engine_v2.schemas import (

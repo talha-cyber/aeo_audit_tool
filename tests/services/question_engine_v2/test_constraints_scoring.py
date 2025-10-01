@@ -94,7 +94,9 @@ def test_enforce_constraints_applies_dedupe_and_seed_mix(sample_questions):
     quotas = QuotaConfig(total=3, per_persona_min=1)
     seed_mix = SeedMixConfig(unseeded=0.4, competitor=0.3, brand=0.3)
 
-    constrained = enforce_constraints(sample_questions, quotas=quotas, seed_mix=seed_mix)
+    constrained = enforce_constraints(
+        sample_questions, quotas=quotas, seed_mix=seed_mix
+    )
 
     assert len(constrained) == 3
     texts = {q.question_text for q in constrained}

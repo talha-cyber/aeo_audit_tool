@@ -5,7 +5,7 @@ Defines the common interface that all trigger types must implement.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import pytz

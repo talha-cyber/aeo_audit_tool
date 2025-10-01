@@ -9,16 +9,15 @@ import functools
 import inspect
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 from app.utils.logger import get_logger
 
 from .master_switch import get_organic_control
-from .feature_registry import get_feature_registry
 
 logger = get_logger(__name__)
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class BypassController:
@@ -39,7 +38,7 @@ class BypassController:
         feature_name: str,
         original_func: Callable,
         bypass_func: Optional[Callable] = None,
-        cache_result: bool = False
+        cache_result: bool = False,
     ) -> Callable:
         """
         Create a bypass wrapper for a function.
@@ -71,7 +70,7 @@ class BypassController:
         feature_name: str,
         original_func: Callable,
         bypass_func: Optional[Callable],
-        cache_result: bool
+        cache_result: bool,
     ) -> Callable:
         """Create async bypass wrapper"""
 
@@ -118,7 +117,7 @@ class BypassController:
         feature_name: str,
         original_func: Callable,
         bypass_func: Optional[Callable],
-        cache_result: bool
+        cache_result: bool,
     ) -> Callable:
         """Create synchronous bypass wrapper"""
 
@@ -156,7 +155,9 @@ class BypassController:
     def _cache_result(self, feature_name: str, args: tuple, kwargs: dict, result: Any):
         """Cache result for bypass optimization"""
         # Simple caching implementation - can be enhanced
-        cache_key = f"{feature_name}_{hash(str(args))}_{hash(str(sorted(kwargs.items())))}"
+        cache_key = (
+            f"{feature_name}_{hash(str(args))}_{hash(str(sorted(kwargs.items())))}"
+        )
         self._bypass_cache[cache_key] = result
 
         # Limit cache size
@@ -166,9 +167,13 @@ class BypassController:
             for key in oldest_keys:
                 del self._bypass_cache[key]
 
-    def get_cached_result(self, feature_name: str, args: tuple, kwargs: dict) -> Optional[Any]:
+    def get_cached_result(
+        self, feature_name: str, args: tuple, kwargs: dict
+    ) -> Optional[Any]:
         """Get cached result if available"""
-        cache_key = f"{feature_name}_{hash(str(args))}_{hash(str(sorted(kwargs.items())))}"
+        cache_key = (
+            f"{feature_name}_{hash(str(args))}_{hash(str(sorted(kwargs.items())))}"
+        )
         return self._bypass_cache.get(cache_key)
 
     def clear_cache(self, feature_name: Optional[str] = None):
@@ -176,7 +181,9 @@ class BypassController:
         with self._lock:
             if feature_name:
                 # Clear cache for specific feature
-                keys_to_remove = [k for k in self._bypass_cache.keys() if k.startswith(feature_name)]
+                keys_to_remove = [
+                    k for k in self._bypass_cache.keys() if k.startswith(feature_name)
+                ]
                 for key in keys_to_remove:
                     del self._bypass_cache[key]
             else:
@@ -197,7 +204,7 @@ class BypassController:
         return {
             "cached_results": len(self._bypass_cache),
             "registered_functions": len(self._original_functions),
-            "memory_usage_bytes": self._estimate_cache_size()
+            "memory_usage_bytes": self._estimate_cache_size(),
         }
 
     def _estimate_cache_size(self) -> int:
@@ -224,7 +231,7 @@ class TrafficRouter:
         original_func: Callable,
         enhanced_func: Optional[Callable] = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Route function call based on organic intelligence state.
@@ -252,16 +259,22 @@ class TrafficRouter:
                 # Route to enhanced function
                 if enhanced_func:
                     result = enhanced_func(*args, **kwargs)
-                    self._record_routing("enhanced", feature_name, time.time() - start_time)
+                    self._record_routing(
+                        "enhanced", feature_name, time.time() - start_time
+                    )
                     return result
                 else:
                     result = original_func(*args, **kwargs)
-                    self._record_routing("original", feature_name, time.time() - start_time)
+                    self._record_routing(
+                        "original", feature_name, time.time() - start_time
+                    )
                     return result
 
         except Exception as e:
             # Always fallback to original on error
-            logger.warning(f"Enhanced function failed for {feature_name}, falling back: {e}")
+            logger.warning(
+                f"Enhanced function failed for {feature_name}, falling back: {e}"
+            )
             result = original_func(*args, **kwargs)
             self._record_routing("fallback", feature_name, time.time() - start_time)
             return result
@@ -272,7 +285,7 @@ class TrafficRouter:
             self._routing_stats[feature_name] = {
                 "original": {"count": 0, "total_time": 0.0},
                 "enhanced": {"count": 0, "total_time": 0.0},
-                "fallback": {"count": 0, "total_time": 0.0}
+                "fallback": {"count": 0, "total_time": 0.0},
             }
 
         stats = self._routing_stats[feature_name][route_type]
@@ -320,13 +333,16 @@ def get_traffic_router() -> TrafficRouter:
 
 # Convenience functions
 
+
 def create_bypass_wrapper(feature_name: str, original_func: Callable) -> Callable:
     """Create bypass wrapper for a function"""
     controller = get_bypass_controller()
     return controller.create_bypass_wrapper(feature_name, original_func)
 
 
-def route_function_call(feature_name: str, original_func: Callable, *args, **kwargs) -> Any:
+def route_function_call(
+    feature_name: str, original_func: Callable, *args, **kwargs
+) -> Any:
     """Route function call through traffic router"""
     router = get_traffic_router()
     return router.route_call(feature_name, original_func, None, *args, **kwargs)

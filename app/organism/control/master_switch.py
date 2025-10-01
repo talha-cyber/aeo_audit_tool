@@ -5,16 +5,15 @@ Single point of control to enable/disable all organic intelligence features
 across the entire AEO Audit Tool while preserving normal operations.
 """
 
-import asyncio
 import json
 import os
 import threading
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass, asdict
 
 from app.utils.logger import get_logger
 
@@ -23,15 +22,17 @@ logger = get_logger(__name__)
 
 class OrganicMode(str, Enum):
     """Operating modes for organic intelligence system"""
-    DISABLED = "disabled"           # Completely disabled
+
+    DISABLED = "disabled"  # Completely disabled
     MONITORING_ONLY = "monitoring"  # Monitor but don't act
-    LEARNING_ONLY = "learning"      # Learn but don't heal
-    HEALING_ONLY = "healing"        # Heal but don't learn
-    FULL = "full"                   # All features enabled
+    LEARNING_ONLY = "learning"  # Learn but don't heal
+    HEALING_ONLY = "healing"  # Heal but don't learn
+    FULL = "full"  # All features enabled
 
 
 class FeatureCategory(str, Enum):
     """Categories of organic features"""
+
     MONITORING = "monitoring"
     LEARNING = "learning"
     HEALING = "healing"
@@ -43,6 +44,7 @@ class FeatureCategory(str, Enum):
 @dataclass
 class ControlAction:
     """Record of control actions for audit trail"""
+
     timestamp: datetime
     action: str
     user: str
@@ -55,6 +57,7 @@ class ControlAction:
 @dataclass
 class OrganicStatus:
     """Current status of the organic intelligence system"""
+
     enabled: bool
     mode: OrganicMode
     active_features: Set[str]
@@ -72,10 +75,10 @@ class OrganicMasterControl:
     while ensuring zero impact on normal operations when disabled.
     """
 
-    _instance: Optional['OrganicMasterControl'] = None
+    _instance: Optional["OrganicMasterControl"] = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> 'OrganicMasterControl':
+    def __new__(cls) -> "OrganicMasterControl":
         """Singleton pattern for global control"""
         if cls._instance is None:
             with cls._lock:
@@ -84,7 +87,7 @@ class OrganicMasterControl:
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
 
         self._initialized = True
@@ -120,7 +123,7 @@ class OrganicMasterControl:
         config_path = Path("organism_config.json")
         if config_path.exists():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, "r") as f:
                     config = json.load(f)
                 enabled = config.get("organic", {}).get("enabled", True)
                 logger.info(f"Organic intelligence state from config: {enabled}")
@@ -140,11 +143,11 @@ class OrganicMasterControl:
                     "enabled": self._enabled,
                     "mode": self._mode.value,
                     "last_modified": datetime.now(timezone.utc).isoformat(),
-                    "active_features": list(self._active_components)
+                    "active_features": list(self._active_components),
                 }
             }
 
-            with open(self._config_path, 'w') as f:
+            with open(self._config_path, "w") as f:
                 json.dump(config, f, indent=2)
 
         except Exception as e:
@@ -175,7 +178,9 @@ class OrganicMasterControl:
         """Get current operating mode"""
         return self._mode
 
-    def set_mode(self, mode: OrganicMode, user: str = "system", reason: str = "Mode change"):
+    def set_mode(
+        self, mode: OrganicMode, user: str = "system", reason: str = "Mode change"
+    ):
         """Set operating mode"""
         with self._control_lock:
             previous_mode = self._mode
@@ -190,9 +195,13 @@ class OrganicMasterControl:
             self._log_action("set_mode", user, reason, new_state={"mode": mode.value})
             self._save_state()
 
-            logger.info(f"Organic mode changed from {previous_mode.value} to {mode.value}")
+            logger.info(
+                f"Organic mode changed from {previous_mode.value} to {mode.value}"
+            )
 
-    async def disable_all(self, user: str = "system", reason: str = "Manual disable") -> bool:
+    async def disable_all(
+        self, user: str = "system", reason: str = "Manual disable"
+    ) -> bool:
         """
         Instantly disable all organic intelligence features.
 
@@ -209,7 +218,9 @@ class OrganicMasterControl:
                 return True
 
             try:
-                logger.info(f"Disabling all organic intelligence features - Reason: {reason}")
+                logger.info(
+                    f"Disabling all organic intelligence features - Reason: {reason}"
+                )
 
                 previous_state = self.get_status()
 
@@ -230,8 +241,9 @@ class OrganicMasterControl:
                 self._mode = OrganicMode.DISABLED
 
                 # 6. Log action
-                self._log_action("disable_all", user, reason,
-                               previous_state=asdict(previous_state))
+                self._log_action(
+                    "disable_all", user, reason, previous_state=asdict(previous_state)
+                )
 
                 # 7. Save state
                 self._save_state()
@@ -243,7 +255,9 @@ class OrganicMasterControl:
                 logger.error(f"Failed to disable organic intelligence: {e}")
                 return False
 
-    async def enable_all(self, user: str = "system", reason: str = "Manual enable") -> bool:
+    async def enable_all(
+        self, user: str = "system", reason: str = "Manual enable"
+    ) -> bool:
         """
         Enable all organic intelligence features.
 
@@ -260,7 +274,9 @@ class OrganicMasterControl:
                 return True
 
             try:
-                logger.info(f"Enabling all organic intelligence features - Reason: {reason}")
+                logger.info(
+                    f"Enabling all organic intelligence features - Reason: {reason}"
+                )
 
                 # 1. Set enabled state
                 self._enabled = True
@@ -288,7 +304,9 @@ class OrganicMasterControl:
                 logger.error(f"Failed to enable organic intelligence: {e}")
                 return False
 
-    async def emergency_shutdown(self, user: str = "system", reason: str = "Emergency") -> bool:
+    async def emergency_shutdown(
+        self, user: str = "system", reason: str = "Emergency"
+    ) -> bool:
         """
         Emergency shutdown - immediate stop without graceful cleanup.
 
@@ -320,8 +338,12 @@ class OrganicMasterControl:
             logger.critical(f"Emergency shutdown failed: {e}")
             return False
 
-    def register_component(self, component_name: str, category: FeatureCategory,
-                          component_instance: Any = None) -> bool:
+    def register_component(
+        self,
+        component_name: str,
+        category: FeatureCategory,
+        component_instance: Any = None,
+    ) -> bool:
         """
         Register an organic component.
 
@@ -339,7 +361,7 @@ class OrganicMasterControl:
                     "category": category.value,
                     "instance": component_instance,
                     "enabled": True,
-                    "registered_at": time.time()
+                    "registered_at": time.time(),
                 }
 
                 if self._enabled:
@@ -380,7 +402,7 @@ class OrganicMasterControl:
             performance_impact=performance_impact,
             uptime=uptime,
             last_action=self._control_history[-1] if self._control_history else None,
-            safe_to_disable=self._is_safe_to_disable()
+            safe_to_disable=self._is_safe_to_disable(),
         )
 
     def get_registered_features(self) -> Dict[str, Dict]:
@@ -392,10 +414,15 @@ class OrganicMasterControl:
         """Get control action history"""
         return self._control_history[-limit:]
 
-    def _log_action(self, action: str, user: str, reason: str,
-                   feature: Optional[str] = None,
-                   previous_state: Optional[Dict] = None,
-                   new_state: Optional[Dict] = None):
+    def _log_action(
+        self,
+        action: str,
+        user: str,
+        reason: str,
+        feature: Optional[str] = None,
+        previous_state: Optional[Dict] = None,
+        new_state: Optional[Dict] = None,
+    ):
         """Log control action for audit trail"""
         control_action = ControlAction(
             timestamp=datetime.now(timezone.utc),
@@ -404,7 +431,7 @@ class OrganicMasterControl:
             reason=reason,
             feature=feature,
             previous_state=previous_state,
-            new_state=new_state
+            new_state=new_state,
         )
 
         self._control_history.append(control_action)

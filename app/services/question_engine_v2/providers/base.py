@@ -13,8 +13,8 @@ from app.services.question_engine_v2.schemas import (
     PersonaRequest,
     PersonaResolution,
     ProviderConfig,
-    QuotaConfig,
     QuestionEngineRequest,
+    QuotaConfig,
     SeedMixConfig,
 )
 from app.utils.logger import get_logger
@@ -87,7 +87,9 @@ class BaseProviderV2(ABC):
     ) -> tuple[List[Question], Dict[str, Any]]:
         """Core implementation to be provided by subclasses."""
 
-    def _build_question_metadata(self, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _build_question_metadata(
+        self, base: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         metadata = base.copy() if base else {}
         metadata.setdefault("provider", self.provider_key)
         return metadata

@@ -16,6 +16,8 @@ from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, Paragraph, Spacer, Table
 
+from app.utils.logger import get_logger
+
 from ..theme import (
     Theme,
     clean_html_content,
@@ -23,7 +25,6 @@ from ..theme import (
     create_table_styles,
     format_date,
 )
-from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -75,9 +76,7 @@ def build(theme: Theme, data: Dict[str, Any]) -> List[Any]:
                     target_width = 2.5 * inch
                     target_height = 1.0 * inch
 
-                logo = Image(
-                    str(logo_path), width=target_width, height=target_height
-                )
+                logo = Image(str(logo_path), width=target_width, height=target_height)
                 logo.hAlign = "CENTER"
                 story.append(logo)
                 story.append(Spacer(1, 0.25 * inch))

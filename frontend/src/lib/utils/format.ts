@@ -1,5 +1,12 @@
-export function formatRelative(isoDate: string) {
+export function formatRelative(isoDate?: string | null) {
+  if (!isoDate) {
+    return '—';
+  }
+
   const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
   const diffMs = Date.now() - date.getTime();
   const diffMinutes = Math.round(diffMs / 60000);
 
@@ -18,6 +25,9 @@ export function formatPercent(value: number, fractionDigits = 0) {
   return `${(value * 100).toFixed(fractionDigits)}%`;
 }
 
-export function formatScore(value: number) {
+export function formatScore(value?: number | null) {
+  if (value === null || value === undefined) {
+    return '—';
+  }
   return `${value.toFixed(0)}`;
 }

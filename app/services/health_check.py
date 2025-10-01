@@ -602,7 +602,10 @@ class HealthChecker:
                 if metric.status == HealthStatus.UNHEALTHY:
                     status = HealthStatus.UNHEALTHY
                     break
-                if metric.status == HealthStatus.DEGRADED and status == HealthStatus.HEALTHY:
+                if (
+                    metric.status == HealthStatus.DEGRADED
+                    and status == HealthStatus.HEALTHY
+                ):
                     status = HealthStatus.DEGRADED
 
             return ComponentHealth(
@@ -676,7 +679,10 @@ class HealthChecker:
                 if metric.status == HealthStatus.UNHEALTHY:
                     status = HealthStatus.UNHEALTHY
                     break
-                if metric.status == HealthStatus.DEGRADED and status == HealthStatus.HEALTHY:
+                if (
+                    metric.status == HealthStatus.DEGRADED
+                    and status == HealthStatus.HEALTHY
+                ):
                     status = HealthStatus.DEGRADED
 
             response_time = (time.perf_counter() - start) * 1000

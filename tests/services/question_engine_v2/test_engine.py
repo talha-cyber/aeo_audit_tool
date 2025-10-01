@@ -1,4 +1,3 @@
-import asyncio
 import sys
 import types
 import uuid
@@ -7,8 +6,13 @@ import pytest
 
 from app.services.providers import Question
 from app.services.question_engine_v2.engine import QuestionEngineV2
-from app.services.question_engine_v2.evaluator.answer_eval import AnswerSatisfactionEvaluator
-from app.services.question_engine_v2.providers.base import BaseProviderV2, ProviderExecutionContext
+from app.services.question_engine_v2.evaluator.answer_eval import (
+    AnswerSatisfactionEvaluator,
+)
+from app.services.question_engine_v2.providers.base import (
+    BaseProviderV2,
+    ProviderExecutionContext,
+)
 from app.services.question_engine_v2.schemas import (
     PersonaMode,
     PersonaRequest,

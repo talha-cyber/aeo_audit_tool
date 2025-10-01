@@ -24,11 +24,20 @@ describe('format utilities', () => {
     expect(formatRelative(twoDaysAgo)).toBe('2d ago');
   });
 
+  it('returns em dash for missing relative date', () => {
+    expect(formatRelative(undefined)).toBe('—');
+    expect(formatRelative('not-a-date')).toBe('—');
+  });
+
   it('formats percentage with default precision', () => {
     expect(formatPercent(0.482)).toBe('48%');
   });
 
   it('formats score to whole number', () => {
     expect(formatScore(74.6)).toBe('75');
+  });
+
+  it('returns em dash for missing score', () => {
+    expect(formatScore(undefined)).toBe('—');
   });
 });

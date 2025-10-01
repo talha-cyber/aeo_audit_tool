@@ -7,29 +7,25 @@ sentiment analysis on specific domains, brands, or use cases using minimal data.
 
 import asyncio
 import json
-import pickle
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
-import logging
-import time
 
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification,
-    Trainer,
-    TrainingArguments,
-    AdamW,
-    get_linear_schedule_with_warmup
-)
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from torch.utils.data import DataLoader, Dataset
+from transformers import (
+    AdamW,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    get_linear_schedule_with_warmup,
+)
 
 from app.utils.logger import get_logger
-from ..core.models import SentimentPolarity, SentimentResult
+
+from ..core.models import SentimentPolarity
 from ..providers.efficient_transformer_provider import EfficientTransformerProvider
 
 logger = get_logger(__name__)
@@ -38,7 +34,9 @@ logger = get_logger(__name__)
 class SentimentDataset(Dataset):
     """Custom dataset for sentiment analysis training"""
 
-    def __init__(self, texts: List[str], labels: List[int], tokenizer, max_length: int = 256):
+    def __init__(
+        self, texts: List[str], labels: List[int], tokenizer, max_length: int = 256
+    ):
         self.texts = texts
         self.labels = labels
         self.tokenizer = tokenizer
@@ -54,16 +52,16 @@ class SentimentDataset(Dataset):
         encoding = self.tokenizer(
             text,
             truncation=True,
-            padding='max_length',
+            padding="max_length",
             max_length=self.max_length,
-            return_tensors='pt'
+            return_tensors="pt",
         )
 
         return {
-            'text': text,
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label, dtype=torch.long)
+            "text": text,
+            "input_ids": encoding["input_ids"].flatten(),
+            "attention_mask": encoding["attention_mask"].flatten(),
+            "labels": torch.tensor(label, dtype=torch.long),
         }
 
 
@@ -89,7 +87,7 @@ class DomainAdapter:
         num_epochs: int = 3,
         warmup_steps: int = 100,
         max_grad_norm: float = 1.0,
-        device: str = "auto"
+        device: str = "auto",
     ):
         self.base_model = base_model
         self.cache_dir = Path(cache_dir)
@@ -119,7 +117,9 @@ class DomainAdapter:
     async def initialize(self):
         """Initialize the domain adapter"""
         try:
-            logger.info(f"Initializing domain adapter with base model: {self.base_model}")
+            logger.info(
+                f"Initializing domain adapter with base model: {self.base_model}"
+            )
 
             loop = asyncio.get_event_loop()
 
@@ -129,10 +129,10 @@ class DomainAdapter:
             )
 
             self.model = await loop.run_in_executor(
-                None, lambda: AutoModelForSequenceClassification.from_pretrained(
-                    self.base_model,
-                    num_labels=3  # Negative, Neutral, Positive
-                )
+                None,
+                lambda: AutoModelForSequenceClassification.from_pretrained(
+                    self.base_model, num_labels=3  # Negative, Neutral, Positive
+                ),
             )
 
             self.model.to(self.device)
@@ -146,7 +146,7 @@ class DomainAdapter:
         self,
         texts: List[str],
         sentiments: List[Union[str, int, SentimentPolarity]],
-        validation_split: float = 0.2
+        validation_split: float = 0.2,
     ) -> Tuple[SentimentDataset, SentimentDataset]:
         """
         Prepare training data from text and sentiment pairs.
@@ -172,9 +172,9 @@ class DomainAdapter:
                     labels.append(2)
             elif isinstance(sentiment, str):
                 sentiment_lower = sentiment.lower()
-                if sentiment_lower in ['negative', 'neg', 'bad', '0']:
+                if sentiment_lower in ["negative", "neg", "bad", "0"]:
                     labels.append(0)
-                elif sentiment_lower in ['neutral', 'neu', 'mixed', '1']:
+                elif sentiment_lower in ["neutral", "neu", "mixed", "1"]:
                     labels.append(1)
                 else:  # positive, pos, good, 2
                     labels.append(2)
@@ -184,17 +184,29 @@ class DomainAdapter:
         # Split data
         if validation_split > 0:
             train_texts, val_texts, train_labels, val_labels = train_test_split(
-                texts, labels, test_size=validation_split, random_state=42, stratify=labels
+                texts,
+                labels,
+                test_size=validation_split,
+                random_state=42,
+                stratify=labels,
             )
         else:
             train_texts, val_texts = texts, []
             train_labels, val_labels = labels, []
 
         # Create datasets
-        train_dataset = SentimentDataset(train_texts, train_labels, self.tokenizer, self.max_length)
-        val_dataset = SentimentDataset(val_texts, val_labels, self.tokenizer, self.max_length) if val_texts else None
+        train_dataset = SentimentDataset(
+            train_texts, train_labels, self.tokenizer, self.max_length
+        )
+        val_dataset = (
+            SentimentDataset(val_texts, val_labels, self.tokenizer, self.max_length)
+            if val_texts
+            else None
+        )
 
-        logger.info(f"Prepared training data: {len(train_texts)} train, {len(val_texts)} validation")
+        logger.info(
+            f"Prepared training data: {len(train_texts)} train, {len(val_texts)} validation"
+        )
 
         return train_dataset, val_dataset
 
@@ -204,7 +216,7 @@ class DomainAdapter:
         train_dataset: SentimentDataset,
         val_dataset: Optional[SentimentDataset] = None,
         cost_limit: float = 1.0,  # Hours of training time limit
-        save_model: bool = True
+        save_model: bool = True,
     ) -> Dict:
         """
         Fine-tune model for specific domain with cost controls.
@@ -232,7 +244,7 @@ class DomainAdapter:
                 train_dataset,
                 batch_size=self.batch_size,
                 shuffle=True,
-                num_workers=0  # Avoid multiprocessing issues
+                num_workers=0,  # Avoid multiprocessing issues
             )
 
             val_loader = None
@@ -241,7 +253,7 @@ class DomainAdapter:
                     val_dataset,
                     batch_size=self.batch_size,
                     shuffle=False,
-                    num_workers=0
+                    num_workers=0,
                 )
 
             # Setup optimizer and scheduler
@@ -251,7 +263,7 @@ class DomainAdapter:
             scheduler = get_linear_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=self.warmup_steps,
-                num_training_steps=total_steps
+                num_training_steps=total_steps,
             )
 
             # Training loop with cost monitoring
@@ -262,7 +274,9 @@ class DomainAdapter:
                 # Check cost limit
                 elapsed_hours = (time.time() - start_time) / 3600
                 if elapsed_hours > cost_limit:
-                    logger.warning(f"Training stopped due to cost limit: {elapsed_hours:.2f}h")
+                    logger.warning(
+                        f"Training stopped due to cost limit: {elapsed_hours:.2f}h"
+                    )
                     break
 
                 # Training phase
@@ -281,7 +295,9 @@ class DomainAdapter:
                         f"Val F1: {val_metrics['f1']:.4f}"
                     )
                 else:
-                    logger.info(f"Epoch {epoch+1}/{self.num_epochs}: Train Loss: {train_loss:.4f}")
+                    logger.info(
+                        f"Epoch {epoch+1}/{self.num_epochs}: Train Loss: {train_loss:.4f}"
+                    )
 
             # Calculate total training time and cost
             total_time = time.time() - start_time
@@ -303,7 +319,7 @@ class DomainAdapter:
                 "validation_metrics": validation_metrics,
                 "model_path": str(model_path) if model_path else None,
                 "training_samples": len(train_dataset),
-                "validation_samples": len(val_dataset) if val_dataset else 0
+                "validation_samples": len(val_dataset) if val_dataset else 0,
             }
 
             # Store in history
@@ -314,11 +330,15 @@ class DomainAdapter:
                 self.domain_models[domain_name] = {
                     "path": model_path,
                     "created_at": time.time(),
-                    "performance": validation_metrics[-1] if validation_metrics else None
+                    "performance": validation_metrics[-1]
+                    if validation_metrics
+                    else None,
                 }
 
             logger.info(f"Domain adaptation completed for {domain_name}")
-            logger.info(f"Training time: {total_time:.2f}s, Estimated cost: ${estimated_cost:.4f}")
+            logger.info(
+                f"Training time: {total_time:.2f}s, Estimated cost: ${estimated_cost:.4f}"
+            )
 
             return results
 
@@ -327,10 +347,7 @@ class DomainAdapter:
             raise
 
     async def _train_epoch(
-        self,
-        train_loader: DataLoader,
-        optimizer: optim.Optimizer,
-        scheduler
+        self, train_loader: DataLoader, optimizer: optim.Optimizer, scheduler
     ) -> float:
         """Train for one epoch"""
         self.model.train()
@@ -340,9 +357,9 @@ class DomainAdapter:
 
         for batch in train_loader:
             # Move batch to device
-            input_ids = batch['input_ids'].to(self.device)
-            attention_mask = batch['attention_mask'].to(self.device)
-            labels = batch['labels'].to(self.device)
+            input_ids = batch["input_ids"].to(self.device)
+            attention_mask = batch["attention_mask"].to(self.device)
+            labels = batch["labels"].to(self.device)
 
             # Forward pass
             optimizer.zero_grad()
@@ -350,10 +367,8 @@ class DomainAdapter:
             outputs = await loop.run_in_executor(
                 None,
                 lambda: self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
-                )
+                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
+                ),
             )
 
             loss = outputs.loss
@@ -380,16 +395,15 @@ class DomainAdapter:
 
         with torch.no_grad():
             for batch in val_loader:
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
-                labels = batch['labels'].to(self.device)
+                input_ids = batch["input_ids"].to(self.device)
+                attention_mask = batch["attention_mask"].to(self.device)
+                labels = batch["labels"].to(self.device)
 
                 outputs = await loop.run_in_executor(
                     None,
                     lambda: self.model(
-                        input_ids=input_ids,
-                        attention_mask=attention_mask
-                    )
+                        input_ids=input_ids, attention_mask=attention_mask
+                    ),
                 )
 
                 logits = outputs.logits
@@ -400,14 +414,14 @@ class DomainAdapter:
 
         # Calculate metrics
         accuracy = accuracy_score(true_labels, predictions)
-        f1 = f1_score(true_labels, predictions, average='weighted')
+        f1 = f1_score(true_labels, predictions, average="weighted")
 
         return {
             "accuracy": accuracy,
             "f1": f1,
             "classification_report": classification_report(
                 true_labels, predictions, output_dict=True
-            )
+            ),
         }
 
     async def _save_domain_model(self, domain_name: str) -> Path:
@@ -434,8 +448,8 @@ class DomainAdapter:
                 "max_length": self.max_length,
                 "batch_size": self.batch_size,
                 "learning_rate": self.learning_rate,
-                "num_epochs": self.num_epochs
-            }
+                "num_epochs": self.num_epochs,
+            },
         }
 
         with open(model_dir / "metadata.json", "w") as f:
@@ -461,9 +475,10 @@ class DomainAdapter:
             )
 
             self.model = await loop.run_in_executor(
-                None, lambda: AutoModelForSequenceClassification.from_pretrained(
+                None,
+                lambda: AutoModelForSequenceClassification.from_pretrained(
                     model_dir / "model"
-                )
+                ),
             )
 
             self.model.to(self.device)
@@ -476,7 +491,9 @@ class DomainAdapter:
             logger.error(f"Failed to load domain model {domain_name}: {e}")
             return False
 
-    def create_domain_provider(self, domain_name: str) -> Optional[EfficientTransformerProvider]:
+    def create_domain_provider(
+        self, domain_name: str
+    ) -> Optional[EfficientTransformerProvider]:
         """Create a sentiment provider using a domain-specific model"""
         model_dir = self.cache_dir / domain_name
 
@@ -487,9 +504,7 @@ class DomainAdapter:
         try:
             # Create provider with domain model path
             provider = EfficientTransformerProvider(
-                model_size="custom",
-                quantization="none",
-                enable_caching=True
+                model_size="custom", quantization="none", enable_caching=True
             )
 
             # Override model name to use local path
@@ -517,10 +532,7 @@ class DomainAdapter:
         return self.training_history
 
     def estimate_training_cost(
-        self,
-        num_samples: int,
-        num_epochs: int = 3,
-        batch_size: int = 8
+        self, num_samples: int, num_epochs: int = 3, batch_size: int = 8
     ) -> Dict:
         """Estimate training cost and time"""
 
@@ -543,7 +555,7 @@ class DomainAdapter:
             "estimated_cpu_cost": cpu_cost,
             "total_steps": total_steps,
             "samples_per_hour": samples_per_hour,
-            "recommendation": "GPU" if estimated_hours > 0.5 else "CPU"
+            "recommendation": "GPU" if estimated_hours > 0.5 else "CPU",
         }
 
     async def cleanup(self):
@@ -561,9 +573,7 @@ class DomainAdapter:
 
 # Utility functions for data preparation
 def prepare_business_data(
-    brand_mentions: List[str],
-    sentiments: List[str],
-    context_type: str = "business"
+    brand_mentions: List[str], sentiments: List[str], context_type: str = "business"
 ) -> Tuple[List[str], List[str]]:
     """
     Prepare business-specific training data.
@@ -596,9 +606,7 @@ def prepare_business_data(
 
 
 def augment_training_data(
-    texts: List[str],
-    labels: List[str],
-    augmentation_factor: int = 2
+    texts: List[str], labels: List[str], augmentation_factor: int = 2
 ) -> Tuple[List[str], List[str]]:
     """
     Simple data augmentation for increasing training samples.
@@ -621,7 +629,7 @@ def augment_training_data(
             augmented_text = text
 
             # Add punctuation variations
-            if not text.endswith(('.', '!', '?')):
+            if not text.endswith((".", "!", "?")):
                 augmented_text += "."
 
             # Add whitespace variations

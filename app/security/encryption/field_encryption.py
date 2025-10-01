@@ -7,7 +7,10 @@ from typing import Optional
 
 try:
     from cryptography.fernet import Fernet  # type: ignore[import-not-found]
-except ImportError:  # pragma: no cover - lightweight fallback for environments without cryptography
+except (
+    ImportError
+):  # pragma: no cover - lightweight fallback for environments without cryptography
+
     class Fernet:  # type: ignore[override]
         """Non-cryptographic fallback that provides reversible encoding for tests."""
 
@@ -30,6 +33,7 @@ except ImportError:  # pragma: no cover - lightweight fallback for environments 
         def decrypt(self, token: bytes) -> bytes:
             data = base64.urlsafe_b64decode(token)
             return self._xor(data)
+
 
 from app.core.config import settings
 

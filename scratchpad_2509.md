@@ -119,7 +119,7 @@ _Last updated: 2025-09-25 16:27:40Z_
 - Confirm Redis availability in tests; may need mocks.
 - Determine source for driver/context weights (config vs hardcoded).
 
--> Answers to Quesions: 
+-> Answers to Quesions:
 Open Questions / Assumptions — Decisions
 LLM client wrappers: Reuse via adapter, don’t rebuild.
 Implement a thin LLMRouter that adapts to your existing wrappers (OpenAIClient, AnthropicClient, etc.).
@@ -139,11 +139,11 @@ Expose overrides via env (e.g., QE_V2_WEIGHT_ROI=10) → merged atop YAML → lo
 - Consider migrating legacy template assets into catalogs once v2 stable.
 - Evaluate need for feature gating in Celery tasks consuming question engine.
 
--> Parking lot recommendations: 
+-> Parking lot recommendations:
 Parking Lot — Recommendations
 Migrate legacy templates: Plan a one-way migrator once v2 stabilizes KPIs.
 Write a small migration script that:
-parses legacy template files → emits v2 YAML with 
+parses legacy template files → emits v2 YAML with
 role/driver/context/seed_type tags,
 runs a classifier to suggest tags where unknown, flagging anything < threshold for human review.
 Schedule after 2–3 weeks of v2 shadow runs (so you know which tags/fields you actually use).

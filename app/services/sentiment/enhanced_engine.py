@@ -5,10 +5,9 @@ Integrates all new ML capabilities including efficient transformers, domain adap
 model optimization, and cost monitoring into the existing sentiment analysis framework.
 """
 
-import asyncio
 import time
-from typing import Dict, List, Optional, Union, Any
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from app.utils.logger import get_logger
 
@@ -17,18 +16,16 @@ from .core.models import (
     AnalysisContext,
     BatchSentimentResult,
     SentimentConfig,
-    SentimentMethod,
     SentimentResult,
 )
+from .cost_management.cost_monitor import CostMonitor
+from .optimization.model_manager import ModelManager
 
 # New ML capabilities
 from .providers.efficient_transformer_provider import (
-    EfficientTransformerProvider,
-    create_cost_effective_sentiment_provider
+    create_cost_effective_sentiment_provider,
 )
 from .training.domain_adapter import DomainAdapter
-from .optimization.model_manager import ModelManager
-from .cost_management.cost_monitor import CostMonitor
 
 logger = get_logger(__name__)
 
@@ -51,7 +48,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         enable_cost_monitoring: bool = True,
         budget_limit: float = 10.0,  # $10/month budget
         enable_model_optimization: bool = True,
-        cache_dir: str = "enhanced_sentiment_cache"
+        cache_dir: str = "enhanced_sentiment_cache",
     ):
         super().__init__(config)
 
@@ -82,7 +79,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         if self.enable_cost_monitoring:
             self.cost_monitor = CostMonitor(
                 storage_dir=str(self.cache_dir / "cost_monitoring"),
-                budget_limit=self.budget_limit
+                budget_limit=self.budget_limit,
             )
             self.cost_monitor.start_monitoring()
             logger.info("Cost monitoring enabled")
@@ -136,7 +133,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         cost_preference: str = "balanced",  # ultra_low, low, balanced, high_accuracy
         brand: Optional[str] = None,
         context: Optional[AnalysisContext] = None,
-        **kwargs
+        **kwargs,
     ) -> SentimentResult:
         """
         Analyze sentiment with cost optimization.
@@ -176,23 +173,27 @@ class EnhancedSentimentEngine(SentimentEngine):
                         model_name=provider.model_name,
                         provider_name=provider.name,
                         input_tokens=len(text.split()),
-                        success=True
+                        success=True,
                     )
 
                 # Add cost metadata
-                if hasattr(provider, 'get_cost_metrics'):
+                if hasattr(provider, "get_cost_metrics"):
                     cost_metrics = provider.get_cost_metrics()
-                    result.metadata.update({
-                        "cost_metrics": cost_metrics,
-                        "cost_preference": cost_preference,
-                        "enhanced_analysis": True
-                    })
+                    result.metadata.update(
+                        {
+                            "cost_metrics": cost_metrics,
+                            "cost_preference": cost_preference,
+                            "enhanced_analysis": True,
+                        }
+                    )
 
                 return result
 
             else:
                 # Fallback to regular analysis
-                logger.warning(f"Enhanced provider {provider_key} not available, using fallback")
+                logger.warning(
+                    f"Enhanced provider {provider_key} not available, using fallback"
+                )
                 return await self.analyze(text, brand, context, **kwargs)
 
         except Exception as e:
@@ -205,7 +206,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                     model_name="unknown",
                     provider_name="enhanced_engine",
                     success=False,
-                    error_message=str(e)
+                    error_message=str(e),
                 )
 
             logger.error(f"Cost-effective analysis failed: {e}")
@@ -219,7 +220,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         training_labels: List[str],
         validation_split: float = 0.2,
         cost_limit: float = 1.0,  # Max $1 for training
-        base_model: str = "small"
+        base_model: str = "small",
     ) -> Dict:
         """
         Train a domain-specific sentiment model.
@@ -242,23 +243,26 @@ class EnhancedSentimentEngine(SentimentEngine):
 
             # Estimate training cost
             cost_estimate = self.domain_adapter.estimate_training_cost(
-                num_samples=len(training_texts),
-                num_epochs=3,
-                batch_size=8
+                num_samples=len(training_texts), num_epochs=3, batch_size=8
             )
 
-            logger.info(f"Estimated training cost: ${cost_estimate['estimated_gpu_cost']:.4f}")
+            logger.info(
+                f"Estimated training cost: ${cost_estimate['estimated_gpu_cost']:.4f}"
+            )
 
             # Check budget
             if self.cost_monitor:
                 month_summary = self.cost_monitor.get_cost_summary("month")
-                if month_summary["total_cost"] + cost_estimate["estimated_gpu_cost"] > self.budget_limit:
+                if (
+                    month_summary["total_cost"] + cost_estimate["estimated_gpu_cost"]
+                    > self.budget_limit
+                ):
                     logger.warning("Training would exceed monthly budget")
                     return {
                         "error": "Training would exceed monthly budget",
                         "estimated_cost": cost_estimate,
                         "current_monthly_cost": month_summary["total_cost"],
-                        "budget_limit": self.budget_limit
+                        "budget_limit": self.budget_limit,
                     }
 
             # Prepare training data
@@ -272,7 +276,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                 train_dataset=train_dataset,
                 val_dataset=val_dataset,
                 cost_limit=cost_limit,
-                save_model=True
+                save_model=True,
             )
 
             # Record training operation
@@ -284,7 +288,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                     model_name=f"domain_{domain_name}",
                     provider_name="domain_adapter",
                     input_tokens=len(training_texts),
-                    success=True
+                    success=True,
                 )
 
             logger.info(f"Domain training completed for: {domain_name}")
@@ -301,7 +305,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                     provider_name="domain_adapter",
                     input_tokens=len(training_texts),
                     success=False,
-                    error_message=str(e)
+                    error_message=str(e),
                 )
 
             logger.error(f"Domain training failed for {domain_name}: {e}")
@@ -312,7 +316,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         text: str,
         domain_name: str,
         brand: Optional[str] = None,
-        context: Optional[AnalysisContext] = None
+        context: Optional[AnalysisContext] = None,
     ) -> SentimentResult:
         """
         Analyze sentiment using a domain-specific model.
@@ -345,11 +349,13 @@ class EnhancedSentimentEngine(SentimentEngine):
             result = await domain_provider.analyze(text, context)
 
             # Add domain metadata
-            result.metadata.update({
-                "domain_model": domain_name,
-                "domain_analysis": True,
-                "enhanced_analysis": True
-            })
+            result.metadata.update(
+                {
+                    "domain_model": domain_name,
+                    "domain_analysis": True,
+                    "enhanced_analysis": True,
+                }
+            )
 
             # Record operation
             if self.cost_monitor:
@@ -360,7 +366,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                     model_name=f"domain_{domain_name}",
                     provider_name="domain_provider",
                     input_tokens=len(text.split()),
-                    success=True
+                    success=True,
                 )
 
             return result
@@ -375,7 +381,7 @@ class EnhancedSentimentEngine(SentimentEngine):
                     model_name=f"domain_{domain_name}",
                     provider_name="domain_provider",
                     success=False,
-                    error_message=str(e)
+                    error_message=str(e),
                 )
 
             logger.error(f"Domain analysis failed for {domain_name}: {e}")
@@ -388,7 +394,7 @@ class EnhancedSentimentEngine(SentimentEngine):
         cost_preference: str = "balanced",
         brand: Optional[str] = None,
         context: Optional[AnalysisContext] = None,
-        **kwargs
+        **kwargs,
     ) -> BatchSentimentResult:
         """
         Optimized batch sentiment analysis with cost tracking.
@@ -423,8 +429,7 @@ class EnhancedSentimentEngine(SentimentEngine):
 
                 # Create batch result
                 batch_result = BatchSentimentResult(
-                    results=results,
-                    config_used=self.config
+                    results=results, config_used=self.config
                 )
 
                 # Record batch operation
@@ -438,17 +443,17 @@ class EnhancedSentimentEngine(SentimentEngine):
                         model_name=provider.model_name,
                         provider_name=provider.name,
                         input_tokens=total_tokens,
-                        success=True
+                        success=True,
                     )
 
                 # Add cost metadata
-                if hasattr(provider, 'get_cost_metrics'):
+                if hasattr(provider, "get_cost_metrics"):
                     cost_metrics = provider.get_cost_metrics()
                     batch_result.config_used.metadata = {
                         "cost_metrics": cost_metrics,
                         "cost_preference": cost_preference,
                         "enhanced_batch_analysis": True,
-                        "batch_size": len(texts)
+                        "batch_size": len(texts),
                     }
 
                 return batch_result
@@ -471,7 +476,7 @@ class EnhancedSentimentEngine(SentimentEngine):
             "cost_summary": self.cost_monitor.get_cost_summary(period),
             "usage_analytics": self.cost_monitor.get_usage_analytics(),
             "optimization_recommendations": self.cost_monitor.get_optimization_recommendations(),
-            "system_stats": {}
+            "system_stats": {},
         }
 
         # Add system stats if model manager is available
@@ -484,12 +489,14 @@ class EnhancedSentimentEngine(SentimentEngine):
         """Get list of available enhanced capabilities"""
         capabilities = {
             "cost_effective_models": list(self.enhanced_providers.keys()),
-            "domain_models": self.domain_adapter.get_available_domains() if self.domain_adapter else [],
+            "domain_models": self.domain_adapter.get_available_domains()
+            if self.domain_adapter
+            else [],
             "cost_monitoring": self.cost_monitor is not None,
             "model_optimization": self.model_manager is not None,
             "domain_adaptation": self.domain_adapter is not None,
             "budget_limit": self.budget_limit,
-            "cache_directory": str(self.cache_dir)
+            "cache_directory": str(self.cache_dir),
         }
 
         # Add provider capabilities
@@ -518,15 +525,17 @@ class EnhancedSentimentEngine(SentimentEngine):
         # If over budget, suggest cost reduction strategies
         if current_usage["total_cost"] > target_budget:
             overage = current_usage["total_cost"] - target_budget
-            recommendations.extend([
-                f"Current monthly cost (${current_usage['total_cost']:.2f}) exceeds target (${target_budget:.2f})",
-                f"Need to reduce costs by ${overage:.2f} ({overage/current_usage['total_cost']*100:.1f}%)",
-                "Recommendations:",
-                "- Use 'ultra_low' cost preference for non-critical analyses",
-                "- Enable more aggressive model caching",
-                "- Use smaller models for bulk processing",
-                "- Consider domain-specific models for repeated use cases"
-            ])
+            recommendations.extend(
+                [
+                    f"Current monthly cost (${current_usage['total_cost']:.2f}) exceeds target (${target_budget:.2f})",
+                    f"Need to reduce costs by ${overage:.2f} ({overage/current_usage['total_cost']*100:.1f}%)",
+                    "Recommendations:",
+                    "- Use 'ultra_low' cost preference for non-critical analyses",
+                    "- Enable more aggressive model caching",
+                    "- Use smaller models for bulk processing",
+                    "- Consider domain-specific models for repeated use cases",
+                ]
+            )
 
             # Update budget limit
             self.budget_limit = target_budget
@@ -534,16 +543,18 @@ class EnhancedSentimentEngine(SentimentEngine):
                 self.cost_monitor.budget_limit = target_budget
 
         else:
-            recommendations.extend([
-                f"Current usage (${current_usage['total_cost']:.2f}) is within target (${target_budget:.2f})",
-                "System is operating efficiently within budget"
-            ])
+            recommendations.extend(
+                [
+                    f"Current usage (${current_usage['total_cost']:.2f}) is within target (${target_budget:.2f})",
+                    "System is operating efficiently within budget",
+                ]
+            )
 
         return {
             "target_budget": target_budget,
             "current_cost": current_usage["total_cost"],
             "recommendations": recommendations,
-            "optimization_applied": True
+            "optimization_applied": True,
         }
 
     async def cleanup(self):
@@ -578,7 +589,7 @@ async def create_enhanced_sentiment_engine(
     cost_preference: str = "balanced",
     enable_domain_adaptation: bool = True,
     budget_limit: float = 10.0,
-    **kwargs
+    **kwargs,
 ) -> EnhancedSentimentEngine:
     """
     Factory function to create and initialize enhanced sentiment engine.
@@ -592,16 +603,15 @@ async def create_enhanced_sentiment_engine(
     Returns:
         Initialized EnhancedSentimentEngine
     """
-    engine = EnhancedSentimentEngine(
-        budget_limit=budget_limit,
-        **kwargs
-    )
+    engine = EnhancedSentimentEngine(budget_limit=budget_limit, **kwargs)
 
     await engine.initialize()
 
     # Set default cost preference
     engine.default_cost_preference = cost_preference
 
-    logger.info(f"Enhanced sentiment engine created with {cost_preference} cost preference")
+    logger.info(
+        f"Enhanced sentiment engine created with {cost_preference} cost preference"
+    )
 
     return engine

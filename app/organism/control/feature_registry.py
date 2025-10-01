@@ -9,7 +9,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from app.utils.logger import get_logger
 
@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 @dataclass
 class FeatureInfo:
     """Information about a registered organic feature"""
+
     name: str
     category: FeatureCategory
     instance: Optional[Any] = None
@@ -36,6 +37,7 @@ class FeatureInfo:
 @dataclass
 class BypassRoute:
     """Bypass route for when organic features are disabled"""
+
     original_function: Callable
     bypass_function: Optional[Callable] = None
     fallback_behavior: str = "passthrough"  # passthrough, cached, default
@@ -69,7 +71,7 @@ class OrganicFeatureRegistry:
         instance: Optional[Any] = None,
         dependencies: Optional[Set[str]] = None,
         bypass_function: Optional[Callable] = None,
-        enabled: bool = True
+        enabled: bool = True,
     ) -> bool:
         """
         Register an organic intelligence feature.
@@ -96,7 +98,7 @@ class OrganicFeatureRegistry:
                     category=category,
                     instance=instance,
                     enabled=enabled,
-                    dependencies=dependencies or set()
+                    dependencies=dependencies or set(),
                 )
 
                 # Register feature
@@ -113,8 +115,7 @@ class OrganicFeatureRegistry:
                 # Create bypass route if provided
                 if bypass_function:
                     self._bypass_routes[name] = BypassRoute(
-                        original_function=instance,
-                        bypass_function=bypass_function
+                        original_function=instance, bypass_function=bypass_function
                     )
 
                 logger.debug(f"Registered organic feature: {name} ({category.value})")
@@ -189,7 +190,9 @@ class OrganicFeatureRegistry:
             # Check dependencies
             for dep in self._features[name].dependencies:
                 if not self.is_feature_enabled(dep):
-                    logger.warning(f"Cannot enable {name}: dependency {dep} is disabled")
+                    logger.warning(
+                        f"Cannot enable {name}: dependency {dep} is disabled"
+                    )
                     return False
 
             self._features[name].enabled = True
@@ -275,10 +278,7 @@ class OrganicFeatureRegistry:
     def get_enabled_features(self) -> List[str]:
         """Get list of enabled feature names"""
         with self._lock:
-            return [
-                name for name, info in self._features.items()
-                if info.enabled
-            ]
+            return [name for name, info in self._features.items() if info.enabled]
 
     def get_dependency_chain(self, name: str) -> List[str]:
         """Get dependency chain for a feature"""
@@ -312,9 +312,13 @@ class OrganicFeatureRegistry:
             for name, info in self._features.items():
                 for dep in info.dependencies:
                     if dep not in self._features:
-                        errors.append(f"Feature {name} depends on unknown feature {dep}")
+                        errors.append(
+                            f"Feature {name} depends on unknown feature {dep}"
+                        )
                     elif not self._features[dep].enabled and info.enabled:
-                        errors.append(f"Feature {name} is enabled but dependency {dep} is disabled")
+                        errors.append(
+                            f"Feature {name} is enabled but dependency {dep} is disabled"
+                        )
 
         return errors
 
@@ -327,17 +331,19 @@ class OrganicFeatureRegistry:
 
                 if performance_metric:
                     metrics = self._features[name].performance_metrics
-                    metrics.setdefault('total_time', 0.0)
-                    metrics.setdefault('call_count', 0)
-                    metrics['total_time'] += performance_metric
-                    metrics['call_count'] += 1
-                    metrics['avg_time'] = metrics['total_time'] / metrics['call_count']
+                    metrics.setdefault("total_time", 0.0)
+                    metrics.setdefault("call_count", 0)
+                    metrics["total_time"] += performance_metric
+                    metrics["call_count"] += 1
+                    metrics["avg_time"] = metrics["total_time"] / metrics["call_count"]
 
     def get_bypass_route(self, name: str) -> Optional[BypassRoute]:
         """Get bypass route for a feature"""
         return self._bypass_routes.get(name)
 
-    def create_bypass_function(self, original_func: Callable, fallback_value: Any = None) -> Callable:
+    def create_bypass_function(
+        self, original_func: Callable, fallback_value: Any = None
+    ) -> Callable:
         """
         Create a bypass function that returns fallback value or passes through.
 
@@ -348,6 +354,7 @@ class OrganicFeatureRegistry:
         Returns:
             Bypass function
         """
+
         def bypass_func(*args, **kwargs):
             if fallback_value is not None:
                 return fallback_value
@@ -363,11 +370,11 @@ class OrganicFeatureRegistry:
             for name, info in self._features.items():
                 if info.performance_metrics:
                     summary[name] = {
-                        'usage_count': info.usage_count,
-                        'last_used': info.last_used,
-                        'avg_time': info.performance_metrics.get('avg_time', 0.0),
-                        'total_time': info.performance_metrics.get('total_time', 0.0),
-                        'enabled': info.enabled
+                        "usage_count": info.usage_count,
+                        "last_used": info.last_used,
+                        "avg_time": info.performance_metrics.get("avg_time", 0.0),
+                        "total_time": info.performance_metrics.get("total_time", 0.0),
+                        "enabled": info.enabled,
                     }
             return summary
 
@@ -387,9 +394,10 @@ class OrganicFeatureRegistry:
 
         with self._lock:
             for name, info in list(self._features.items()):
-                if (current_time - info.last_used > min_age_seconds and
-                    info.usage_count == 0):
-
+                if (
+                    current_time - info.last_used > min_age_seconds
+                    and info.usage_count == 0
+                ):
                     if self.unregister_feature(name):
                         cleaned_up.append(name)
 

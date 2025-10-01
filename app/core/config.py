@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     SERVICE_NAME: Optional[str] = None
     ALERT_WEBHOOK_URL: Optional[str] = None
 
+    # Dashboard persona library persistence
+    PERSONA_LIBRARY_PATH: Optional[str] = None
+
     @property
     def database_url(self) -> str:
         """Construct the database URL from individual components."""

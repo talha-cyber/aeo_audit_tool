@@ -137,12 +137,8 @@ class DynamicProviderOptions(BaseModel):
 class ProviderConfig(BaseModel):
     """Wrapper for provider-specific configuration."""
 
-    template: TemplateProviderOptions = Field(
-        default_factory=TemplateProviderOptions
-    )
-    dynamic: DynamicProviderOptions = Field(
-        default_factory=DynamicProviderOptions
-    )
+    template: TemplateProviderOptions = Field(default_factory=TemplateProviderOptions)
+    dynamic: DynamicProviderOptions = Field(default_factory=DynamicProviderOptions)
 
 
 class QuestionEngineRequest(BaseModel):

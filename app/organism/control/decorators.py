@@ -9,15 +9,15 @@ organic features when the system is disabled.
 import functools
 import inspect
 import time
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar
 
 from app.utils.logger import get_logger
 
-from .master_switch import get_organic_control, FeatureCategory
+from .master_switch import FeatureCategory, get_organic_control
 
 logger = get_logger(__name__)
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def organic_enhancement(
@@ -25,7 +25,7 @@ def organic_enhancement(
     category: FeatureCategory = FeatureCategory.MONITORING,
     graceful_fallback: bool = True,
     performance_tracking: bool = True,
-    error_handling: bool = True
+    error_handling: bool = True,
 ) -> Callable[[F], F]:
     """
     Decorator to add organic intelligence enhancement to any function.
@@ -82,7 +82,9 @@ def organic_enhancement(
                     await _handle_organic_error(feature, e, args, kwargs)
 
                 if graceful_fallback:
-                    logger.warning(f"Organic feature {feature} failed, falling back to original")
+                    logger.warning(
+                        f"Organic feature {feature} failed, falling back to original"
+                    )
                     return await func(*args, **kwargs)
                 else:
                     raise
@@ -124,7 +126,9 @@ def organic_enhancement(
                     _handle_organic_error_sync(feature, e, args, kwargs)
 
                 if graceful_fallback:
-                    logger.warning(f"Organic feature {feature} failed, falling back to original")
+                    logger.warning(
+                        f"Organic feature {feature} failed, falling back to original"
+                    )
                     return func(*args, **kwargs)
                 else:
                     raise
@@ -145,7 +149,7 @@ def organic_enhancement(
 def organic_wrapper(
     enabled_check: bool = True,
     performance_tracking: bool = False,
-    feature_name: Optional[str] = None
+    feature_name: Optional[str] = None,
 ) -> Callable[[F], F]:
     """
     Simple wrapper that adds organic intelligence to existing functions.
@@ -196,7 +200,7 @@ def organic_wrapper(
 def register_organic_feature(
     feature_name: str,
     category: FeatureCategory = FeatureCategory.MONITORING,
-    auto_register: bool = True
+    auto_register: bool = True,
 ) -> Callable[[type], type]:
     """
     Class decorator to register organic intelligence features.
@@ -237,7 +241,7 @@ def register_organic_feature(
 
             # Add convenience method to check if enabled
             def is_organic_enabled(self) -> bool:
-                return getattr(self, '_organic_enabled', False)
+                return getattr(self, "_organic_enabled", False)
 
             cls.is_organic_enabled = is_organic_enabled
 
@@ -248,19 +252,24 @@ def register_organic_feature(
 
 # Helper functions for organic processing
 
+
 async def _pre_process_organic(feature: str, args: tuple, kwargs: dict) -> tuple:
     """Pre-process function arguments with organic intelligence"""
     # This will be enhanced as organic components are added
     return args, kwargs
 
 
-async def _post_process_organic(feature: str, result: Any, args: tuple, kwargs: dict) -> Any:
+async def _post_process_organic(
+    feature: str, result: Any, args: tuple, kwargs: dict
+) -> Any:
     """Post-process function result with organic intelligence"""
     # This will be enhanced as organic components are added
     return result
 
 
-async def _handle_organic_error(feature: str, error: Exception, args: tuple, kwargs: dict):
+async def _handle_organic_error(
+    feature: str, error: Exception, args: tuple, kwargs: dict
+):
     """Handle errors with organic intelligence"""
     # This will be enhanced with learning and adaptation
     logger.debug(f"Organic error in {feature}: {error}")
@@ -274,17 +283,22 @@ async def _track_performance(feature: str, duration: float, success: bool):
 
 # Synchronous versions of helper functions
 
+
 def _pre_process_organic_sync(feature: str, args: tuple, kwargs: dict) -> tuple:
     """Synchronous version of pre-processing"""
     return args, kwargs
 
 
-def _post_process_organic_sync(feature: str, result: Any, args: tuple, kwargs: dict) -> Any:
+def _post_process_organic_sync(
+    feature: str, result: Any, args: tuple, kwargs: dict
+) -> Any:
     """Synchronous version of post-processing"""
     return result
 
 
-def _handle_organic_error_sync(feature: str, error: Exception, args: tuple, kwargs: dict):
+def _handle_organic_error_sync(
+    feature: str, error: Exception, args: tuple, kwargs: dict
+):
     """Synchronous version of error handling"""
     logger.debug(f"Organic error in {feature}: {error}")
 
@@ -295,6 +309,7 @@ def _track_performance_sync(feature: str, duration: float, success: bool):
 
 
 # Utility functions
+
 
 def is_organic_enabled(feature: Optional[str] = None) -> bool:
     """Check if organic intelligence is enabled for a feature"""
@@ -311,5 +326,5 @@ def get_organic_status() -> dict:
         "mode": status.mode.value,
         "active_features": list(status.active_features),
         "performance_impact": status.performance_impact,
-        "uptime": status.uptime
+        "uptime": status.uptime,
     }

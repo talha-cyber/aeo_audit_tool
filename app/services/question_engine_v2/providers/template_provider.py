@@ -43,9 +43,7 @@ class TemplateProviderV2(BaseProviderV2):
             return [], {"warning": "no_personas"}
 
         total_quota = (
-            context.quotas.total
-            if context.quotas and context.quotas.total
-            else None
+            context.quotas.total if context.quotas and context.quotas.total else None
         )
         per_persona_cap = self.options.max_per_persona
 
@@ -65,7 +63,7 @@ class TemplateProviderV2(BaseProviderV2):
             questions.extend(persona_questions)
 
         if total_quota is not None:
-            questions = questions[: total_quota]
+            questions = questions[:total_quota]
 
         metadata = {
             "provider": self.provider_key,
@@ -77,7 +75,9 @@ class TemplateProviderV2(BaseProviderV2):
     def _load_catalogs(self) -> None:
         base_dir = Path(__file__).resolve().parent.parent / "catalogs" / "templates"
         if not base_dir.exists():
-            self.logger.warning("Template catalog directory missing", path=str(base_dir))
+            self.logger.warning(
+                "Template catalog directory missing", path=str(base_dir)
+            )
             return
         for path in base_dir.glob("*.txt"):
             mode = path.stem
@@ -96,9 +96,7 @@ class TemplateProviderV2(BaseProviderV2):
                     )
             self._template_cache[mode] = entries
 
-    def _templates_for(
-        self, mode: str, persona
-    ) -> Iterable[Tuple[str, str, str, str]]:
+    def _templates_for(self, mode: str, persona) -> Iterable[Tuple[str, str, str, str]]:
         entries = self._template_cache.get(mode, [])
         for role, driver, context_stage, template in entries:
             if role == persona.role and driver == persona.driver:

@@ -39,7 +39,9 @@ class QuestionEngineCache:
         self._enabled = enabled
         self._ttl = ttl_seconds or settings.DYNAMIC_Q_CACHE_TTL
         self._namespace = namespace.rstrip(":")
-        self._redis_url = redis_url or f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0"
+        self._redis_url = (
+            redis_url or f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0"
+        )
         self._client: Optional[redis.Redis] = redis_client
         self._local_cache: Dict[str, _CacheEntry] = {}
         self._lock = asyncio.Lock()
@@ -196,7 +198,9 @@ class QuestionEngineCache:
             return json.dumps({"__repr__": repr(value)})
 
     @staticmethod
-    def _deserialize(payload: str, deserializer: Optional[Callable[[str], T]]) -> Optional[T]:
+    def _deserialize(
+        payload: str, deserializer: Optional[Callable[[str], T]]
+    ) -> Optional[T]:
         if deserializer:
             return deserializer(payload)
         try:

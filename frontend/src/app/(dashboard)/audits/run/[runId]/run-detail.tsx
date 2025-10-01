@@ -16,7 +16,8 @@ export function RunDetail({ runId }: RunDetailProps) {
   }
 
   const { run, questions } = data;
-  const completion = Math.round((run.progress.done / run.progress.total) * 100);
+  const total = run.progress.total || 1;
+  const completion = Math.min(100, Math.round((run.progress.done / total) * 100));
 
   return (
     <div className="space-y-8">

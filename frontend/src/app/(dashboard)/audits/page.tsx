@@ -35,7 +35,11 @@ export default function AuditsPage() {
             data={audits}
             columns={[
               { key: 'name', header: 'Audit' },
-              { key: 'owner', header: 'Owner' },
+              {
+                key: 'owner',
+                header: 'Owner',
+                render: (audit) => audit.owner?.name ?? '—'
+              },
               {
                 key: 'platforms',
                 header: 'Platforms',
@@ -73,7 +77,8 @@ export default function AuditsPage() {
           <CardHeader title="Live runs" description="Progress lanes refresh every 60 seconds." />
           <CardContent className="space-y-4">
             {runs.map((run) => {
-              const progress = Math.round((run.progress.done / run.progress.total) * 100);
+              const total = run.progress.total || 1;
+              const progress = Math.min(100, Math.round((run.progress.done / total) * 100));
               return (
                 <div key={run.id} className="rounded-lg border border-border bg-elevated/40 p-4">
                   <div className="flex items-center justify-between">

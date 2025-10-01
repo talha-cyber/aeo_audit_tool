@@ -191,6 +191,6 @@ class QuestionEngineV2:
 
         total = len(questions) or 1
         for seed, count in seed_counts.items():
-            metrics.QE_V2_SEED_MIX_RATIO.labels(
-                run_id=run_id, seed_type=seed
-            ).set(count / total)
+            metrics.QE_V2_SEED_MIX_RATIO.labels(run_id=run_id, seed_type=seed).set(
+                count / total
+            )

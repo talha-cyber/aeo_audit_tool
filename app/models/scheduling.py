@@ -233,6 +233,37 @@ class ScheduledJob(Base):
     def retry_delay_seconds(self, value: int) -> None:
         self.retry_delay = value
 
+    @property
+    def job_data(self) -> Dict[str, Any]:
+        """Compatibility accessor exposing the execution payload."""
+
+        config: Dict[str, Any] = self.job_config or {}
+        if isinstance(config, dict) and "payload" in config:
+            payload = config.get("payload")
+            return payload if isinstance(payload, dict) else config
+        return config
+
+    @job_data.setter
+    def job_data(self, value: Dict[str, Any]) -> None:
+        """Allow legacy writers to assign execution payloads."""
+
+        if value is None:
+            self.job_config = {}
+            return
+
+        if not isinstance(value, dict):
+            raise TypeError("job_data must be assigned a dictionary")
+
+        if "payload" in value or any(
+            key in value for key in ("cadence", "platforms", "owner", "execution")
+        ):
+            self.job_config = value
+        else:
+            existing = self.job_config if isinstance(self.job_config, dict) else {}
+            updated = dict(existing)
+            updated["payload"] = value
+            self.job_config = updated
+
     @hybrid_property
     def is_active(self) -> bool:
         """Check if job is currently active"""

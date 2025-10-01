@@ -7,23 +7,24 @@ long-term knowledge for the intelligent system.
 
 import asyncio
 import json
-import time
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
 import sqlite3
 import threading
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
-from app.utils.logger import get_logger
-from app.organism.control.master_switch import get_organic_control, FeatureCategory
 from app.organism.control.decorators import register_organic_feature
+from app.organism.control.master_switch import FeatureCategory
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class MemoryType(str, Enum):
     """Types of memory stored in the system"""
+
     EXPERIENCE = "experience"
     PATTERN = "pattern"
     DECISION = "decision"
@@ -35,16 +36,18 @@ class MemoryType(str, Enum):
 
 class MemoryPriority(str, Enum):
     """Priority levels for memory retention"""
-    CRITICAL = "critical"      # Never delete
-    HIGH = "high"             # Keep for extended periods
-    MEDIUM = "medium"         # Standard retention
-    LOW = "low"               # Can be cleaned up
-    TEMPORARY = "temporary"   # Short-term only
+
+    CRITICAL = "critical"  # Never delete
+    HIGH = "high"  # Keep for extended periods
+    MEDIUM = "medium"  # Standard retention
+    LOW = "low"  # Can be cleaned up
+    TEMPORARY = "temporary"  # Short-term only
 
 
 @dataclass
 class MemoryItem:
     """Individual memory item"""
+
     id: str
     memory_type: MemoryType
     priority: MemoryPriority
@@ -61,6 +64,7 @@ class MemoryItem:
 @dataclass
 class LearningSession:
     """A learning session containing multiple experiences"""
+
     id: str
     start_time: datetime
     end_time: Optional[datetime]
@@ -107,7 +111,7 @@ class MemoryConsolidator:
             "consolidations_performed": 0,
             "patterns_discovered": 0,
             "memory_cache_hits": 0,
-            "memory_cache_misses": 0
+            "memory_cache_misses": 0,
         }
 
         logger.info("Memory Consolidator initialized")
@@ -127,9 +131,7 @@ class MemoryConsolidator:
             # Start consolidation thread
             self._running = True
             self._consolidation_thread = threading.Thread(
-                target=self._consolidation_loop,
-                daemon=True,
-                name="MemoryConsolidation"
+                target=self._consolidation_loop, daemon=True, name="MemoryConsolidation"
             )
             self._consolidation_thread.start()
 
@@ -146,7 +148,8 @@ class MemoryConsolidator:
                 cursor = conn.cursor()
 
                 # Create memories table
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS memories (
                         id TEXT PRIMARY KEY,
                         memory_type TEXT NOT NULL,
@@ -160,10 +163,12 @@ class MemoryConsolidator:
                         tags TEXT,
                         associations TEXT
                     )
-                """)
+                """
+                )
 
                 # Create learning sessions table
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS learning_sessions (
                         id TEXT PRIMARY KEY,
                         start_time TIMESTAMP NOT NULL,
@@ -173,13 +178,22 @@ class MemoryConsolidator:
                         performance_delta REAL,
                         context TEXT
                     )
-                """)
+                """
+                )
 
                 # Create indexes
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_type ON memories(memory_type)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_priority ON memories(priority)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_relevance_score ON memories(relevance_score)")
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_memory_type ON memories(memory_type)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_memory_priority ON memories(priority)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_relevance_score ON memories(relevance_score)"
+                )
 
                 conn.commit()
 
@@ -194,13 +208,16 @@ class MemoryConsolidator:
                 cursor = conn.cursor()
 
                 # Load recent high-priority memories
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM memories
                     WHERE priority IN ('critical', 'high')
                     OR created_at > datetime('now', '-1 day')
                     ORDER BY relevance_score DESC, created_at DESC
                     LIMIT ?
-                """, (self._max_cache_size,))
+                """,
+                    (self._max_cache_size,),
+                )
 
                 rows = cursor.fetchall()
                 for row in rows:
@@ -225,7 +242,7 @@ class MemoryConsolidator:
             last_accessed=datetime.fromisoformat(row[7]) if row[7] else None,
             relevance_score=row[8] or 1.0,
             tags=set(json.loads(row[9])) if row[9] else set(),
-            associations=set(json.loads(row[10])) if row[10] else set()
+            associations=set(json.loads(row[10])) if row[10] else set(),
         )
 
     def _consolidation_loop(self):
@@ -240,7 +257,10 @@ class MemoryConsolidator:
                     break
 
                 current_time = time.time()
-                if current_time - self._last_consolidation >= self._consolidation_interval:
+                if (
+                    current_time - self._last_consolidation
+                    >= self._consolidation_interval
+                ):
                     asyncio.run(self._perform_consolidation())
                     self._last_consolidation = current_time
 
@@ -300,7 +320,9 @@ class MemoryConsolidator:
                 if len(memories) < 3:  # Need at least 3 items to identify patterns
                     continue
 
-                type_patterns = await self._analyze_memory_group_patterns(memory_type, memories)
+                type_patterns = await self._analyze_memory_group_patterns(
+                    memory_type, memories
+                )
                 patterns.extend(type_patterns)
 
             return patterns
@@ -310,9 +332,7 @@ class MemoryConsolidator:
             return []
 
     async def _analyze_memory_group_patterns(
-        self,
-        memory_type: MemoryType,
-        memories: List[MemoryItem]
+        self, memory_type: MemoryType, memories: List[MemoryItem]
     ) -> List[Dict[str, Any]]:
         """Analyze patterns within a group of memories of the same type"""
         try:
@@ -329,19 +349,23 @@ class MemoryConsolidator:
                     # Simple trend analysis
                     values = [d[1] for d in performance_data]
                     if self._is_trending_up(values):
-                        patterns.append({
-                            "type": "performance_improvement",
-                            "confidence": 0.8,
-                            "evidence": performance_data[-5:],
-                            "description": "Performance metrics showing upward trend"
-                        })
+                        patterns.append(
+                            {
+                                "type": "performance_improvement",
+                                "confidence": 0.8,
+                                "evidence": performance_data[-5:],
+                                "description": "Performance metrics showing upward trend",
+                            }
+                        )
                     elif self._is_trending_down(values):
-                        patterns.append({
-                            "type": "performance_degradation",
-                            "confidence": 0.8,
-                            "evidence": performance_data[-5:],
-                            "description": "Performance metrics showing downward trend"
-                        })
+                        patterns.append(
+                            {
+                                "type": "performance_degradation",
+                                "confidence": 0.8,
+                                "evidence": performance_data[-5:],
+                                "description": "Performance metrics showing downward trend",
+                            }
+                        )
 
             elif memory_type == MemoryType.ERROR:
                 # Look for error patterns
@@ -354,23 +378,29 @@ class MemoryConsolidator:
 
                 for error_type, error_memories in error_types.items():
                     if len(error_memories) >= 3:
-                        patterns.append({
-                            "type": "recurring_error",
-                            "confidence": 0.9,
-                            "evidence": [m.id for m in error_memories],
-                            "description": f"Recurring {error_type} errors detected"
-                        })
+                        patterns.append(
+                            {
+                                "type": "recurring_error",
+                                "confidence": 0.9,
+                                "evidence": [m.id for m in error_memories],
+                                "description": f"Recurring {error_type} errors detected",
+                            }
+                        )
 
             elif memory_type == MemoryType.DECISION:
                 # Look for decision outcome patterns
-                successful_decisions = [m for m in memories if m.content.get("success", False)]
+                successful_decisions = [
+                    m for m in memories if m.content.get("success", False)
+                ]
                 if len(successful_decisions) > len(memories) * 0.8:
-                    patterns.append({
-                        "type": "high_decision_success_rate",
-                        "confidence": 0.7,
-                        "evidence": [m.id for m in successful_decisions],
-                        "description": "High decision success rate observed"
-                    })
+                    patterns.append(
+                        {
+                            "type": "high_decision_success_rate",
+                            "confidence": 0.7,
+                            "evidence": [m.id for m in successful_decisions],
+                            "description": "High decision success rate observed",
+                        }
+                    )
 
             return patterns
 
@@ -408,7 +438,9 @@ class MemoryConsolidator:
 
             for group in experience_groups:
                 if len(group) >= 3:  # Need multiple experiences for consolidation
-                    consolidated_insight = await self._create_consolidated_insight(group)
+                    consolidated_insight = await self._create_consolidated_insight(
+                        group
+                    )
                     if consolidated_insight:
                         consolidated.append(consolidated_insight)
 
@@ -422,7 +454,8 @@ class MemoryConsolidator:
         """Group similar experiences together"""
         try:
             experience_memories = [
-                m for m in self._memory_cache.values()
+                m
+                for m in self._memory_cache.values()
                 if m.memory_type == MemoryType.EXPERIENCE
             ]
 
@@ -439,8 +472,10 @@ class MemoryConsolidator:
                 used_memories.add(memory.id)
 
                 for other_memory in experience_memories:
-                    if (other_memory.id not in used_memories and
-                        len(memory.tags.intersection(other_memory.tags)) >= 2):
+                    if (
+                        other_memory.id not in used_memories
+                        and len(memory.tags.intersection(other_memory.tags)) >= 2
+                    ):
                         similar_memories.append(other_memory)
                         used_memories.add(other_memory.id)
 
@@ -453,7 +488,9 @@ class MemoryConsolidator:
             logger.error(f"Error grouping similar experiences: {e}")
             return []
 
-    async def _create_consolidated_insight(self, experiences: List[MemoryItem]) -> Optional[str]:
+    async def _create_consolidated_insight(
+        self, experiences: List[MemoryItem]
+    ) -> Optional[str]:
         """Create a consolidated insight from multiple experiences"""
         try:
             # Generate insight from experiences
@@ -476,7 +513,7 @@ class MemoryConsolidator:
                 "source_experiences": [exp.id for exp in experiences],
                 "common_patterns": list(common_tags),
                 "shared_context": shared_context,
-                "confidence": min(1.0, len(common_tags) / 5.0)
+                "confidence": min(1.0, len(common_tags) / 5.0),
             }
 
             await self.store_memory(
@@ -485,7 +522,7 @@ class MemoryConsolidator:
                 priority=MemoryPriority.HIGH,
                 content=insight_content,
                 metadata={"consolidation_source": True},
-                tags=common_tags
+                tags=common_tags,
             )
 
             return insight_id
@@ -514,7 +551,7 @@ class MemoryConsolidator:
                     MemoryPriority.HIGH: 1.5,
                     MemoryPriority.MEDIUM: 1.0,
                     MemoryPriority.LOW: 0.7,
-                    MemoryPriority.TEMPORARY: 0.3
+                    MemoryPriority.TEMPORARY: 0.3,
                 }
                 priority_factor = priority_factors.get(memory.priority, 1.0)
 
@@ -537,7 +574,7 @@ class MemoryConsolidator:
                 for memory in self._memory_cache.values():
                     cursor.execute(
                         "UPDATE memories SET relevance_score = ? WHERE id = ?",
-                        (memory.relevance_score, memory.id)
+                        (memory.relevance_score, memory.id),
                     )
 
                 conn.commit()
@@ -563,7 +600,8 @@ class MemoryConsolidator:
                 to_remove = total_memories - self._max_memory_items
 
                 # Remove lowest relevance, oldest memories (except critical)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     DELETE FROM memories
                     WHERE priority != 'critical'
                     AND id IN (
@@ -572,7 +610,9 @@ class MemoryConsolidator:
                         ORDER BY relevance_score ASC, created_at ASC
                         LIMIT ?
                     )
-                """, (to_remove,))
+                """,
+                    (to_remove,),
+                )
 
                 cleaned_count = cursor.rowcount
                 conn.commit()
@@ -580,7 +620,10 @@ class MemoryConsolidator:
             # Remove from cache as well
             memory_ids_to_remove = []
             for memory_id, memory in self._memory_cache.items():
-                if memory.priority != MemoryPriority.CRITICAL and memory.relevance_score < 0.3:
+                if (
+                    memory.priority != MemoryPriority.CRITICAL
+                    and memory.relevance_score < 0.3
+                ):
                     memory_ids_to_remove.append(memory_id)
 
             for memory_id in memory_ids_to_remove:
@@ -612,7 +655,7 @@ class MemoryConsolidator:
         content: Dict[str, Any],
         metadata: Optional[Dict[str, Any]] = None,
         tags: Optional[Set[str]] = None,
-        associations: Optional[Set[str]] = None
+        associations: Optional[Set[str]] = None,
     ) -> bool:
         """
         Store a new memory item.
@@ -638,7 +681,7 @@ class MemoryConsolidator:
                 metadata=metadata or {},
                 created_at=datetime.now(timezone.utc),
                 tags=tags or set(),
-                associations=associations or set()
+                associations=associations or set(),
             )
 
             # Store in cache
@@ -650,8 +693,8 @@ class MemoryConsolidator:
                     # Remove least relevant items
                     items_to_remove = sorted(
                         self._memory_cache.items(),
-                        key=lambda x: (x[1].relevance_score, x[1].created_at)
-                    )[:len(self._memory_cache) - self._max_cache_size + 1]
+                        key=lambda x: (x[1].relevance_score, x[1].created_at),
+                    )[: len(self._memory_cache) - self._max_cache_size + 1]
 
                     for item_id, _ in items_to_remove:
                         del self._memory_cache[item_id]
@@ -672,24 +715,29 @@ class MemoryConsolidator:
             with sqlite3.connect(self._memory_db_path) as conn:
                 cursor = conn.cursor()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO memories
                     (id, memory_type, priority, content, metadata, created_at,
                      accessed_count, last_accessed, relevance_score, tags, associations)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    memory.id,
-                    memory.memory_type.value,
-                    memory.priority.value,
-                    json.dumps(memory.content),
-                    json.dumps(memory.metadata),
-                    memory.created_at.isoformat(),
-                    memory.accessed_count,
-                    memory.last_accessed.isoformat() if memory.last_accessed else None,
-                    memory.relevance_score,
-                    json.dumps(list(memory.tags)),
-                    json.dumps(list(memory.associations))
-                ))
+                """,
+                    (
+                        memory.id,
+                        memory.memory_type.value,
+                        memory.priority.value,
+                        json.dumps(memory.content),
+                        json.dumps(memory.metadata),
+                        memory.created_at.isoformat(),
+                        memory.accessed_count,
+                        memory.last_accessed.isoformat()
+                        if memory.last_accessed
+                        else None,
+                        memory.relevance_score,
+                        json.dumps(list(memory.tags)),
+                        json.dumps(list(memory.associations)),
+                    ),
+                )
 
                 conn.commit()
 
@@ -722,7 +770,11 @@ class MemoryConsolidator:
                     # Update access count in database
                     cursor.execute(
                         "UPDATE memories SET accessed_count = ?, last_accessed = ? WHERE id = ?",
-                        (memory.accessed_count, memory.last_accessed.isoformat(), memory_id)
+                        (
+                            memory.accessed_count,
+                            memory.last_accessed.isoformat(),
+                            memory_id,
+                        ),
                     )
                     conn.commit()
 
@@ -742,7 +794,7 @@ class MemoryConsolidator:
         memory_type: Optional[MemoryType] = None,
         tags: Optional[Set[str]] = None,
         content_keywords: Optional[List[str]] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[MemoryItem]:
         """Search for memories based on criteria"""
         try:
@@ -776,7 +828,10 @@ class MemoryConsolidator:
                     filtered_memories = []
                     for memory in memories:
                         content_str = json.dumps(memory.content).lower()
-                        if any(keyword.lower() in content_str for keyword in content_keywords):
+                        if any(
+                            keyword.lower() in content_str
+                            for keyword in content_keywords
+                        ):
                             filtered_memories.append(memory)
                     memories = filtered_memories
 
@@ -802,9 +857,10 @@ class MemoryConsolidator:
 
             # Add current cache stats
             stats["cache_size"] = len(self._memory_cache)
-            stats["cache_hit_rate"] = (
-                self._metrics["memory_cache_hits"] /
-                max(1, self._metrics["memory_cache_hits"] + self._metrics["memory_cache_misses"])
+            stats["cache_hit_rate"] = self._metrics["memory_cache_hits"] / max(
+                1,
+                self._metrics["memory_cache_hits"]
+                + self._metrics["memory_cache_misses"],
             )
 
             # Memory type distribution
@@ -819,7 +875,9 @@ class MemoryConsolidator:
             priority_distribution = {}
             for memory in self._memory_cache.values():
                 priority_name = memory.priority.value
-                priority_distribution[priority_name] = priority_distribution.get(priority_name, 0) + 1
+                priority_distribution[priority_name] = (
+                    priority_distribution.get(priority_name, 0) + 1
+                )
 
             stats["priority_distribution"] = priority_distribution
 

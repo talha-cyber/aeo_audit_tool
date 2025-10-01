@@ -1,5 +1,5 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import pytest
 import yaml
@@ -19,7 +19,11 @@ def extractor() -> PersonaExtractor:
 @pytest.fixture()
 def custom_catalog_dir(tmp_path: Path) -> Path:
     source_dir = (
-        Path(__file__).resolve().parents[3] / "app" / "services" / "question_engine_v2" / "catalogs"
+        Path(__file__).resolve().parents[3]
+        / "app"
+        / "services"
+        / "question_engine_v2"
+        / "catalogs"
     )
     filenames = [
         "b2c_roles.yaml",
@@ -58,7 +62,9 @@ def test_resolve_personas_with_presets_and_custom(extractor: PersonaExtractor) -
         mode=PersonaMode.B2B,
         voices=["cost_cutter_cfo"],
         selections=[
-            PersonaSelection(role="vp_sales", driver="scalability", contexts=["evaluation"])
+            PersonaSelection(
+                role="vp_sales", driver="scalability", contexts=["evaluation"]
+            )
         ],
     )
 
@@ -80,7 +86,9 @@ def test_resolve_personas_ignores_unknown_voice(extractor: PersonaExtractor) -> 
     assert personas[0].voice == "value_shopper"
 
 
-def test_resolve_personas_falls_back_to_default_context(extractor: PersonaExtractor) -> None:
+def test_resolve_personas_falls_back_to_default_context(
+    extractor: PersonaExtractor,
+) -> None:
     personas = extractor.resolve_personas(
         mode=PersonaMode.B2C,
         selections=[
@@ -128,7 +136,9 @@ def test_persona_extractor_capabilities(
     ]
 
     catalog_initial = custom_extractor.load_catalog(PersonaMode.B2C)
-    assert catalog_initial.drivers["deal_hunter"].emotional_anchor == "fear_of_overpaying"
+    assert (
+        catalog_initial.drivers["deal_hunter"].emotional_anchor == "fear_of_overpaying"
+    )
 
     drivers_path = custom_catalog_dir / "b2c_drivers.yaml"
     drivers_data = yaml.safe_load(drivers_path.read_text())
@@ -136,7 +146,9 @@ def test_persona_extractor_capabilities(
     drivers_path.write_text(yaml.safe_dump(drivers_data, sort_keys=False))
 
     catalog_cached = custom_extractor.load_catalog(PersonaMode.B2C)
-    assert catalog_cached.drivers["deal_hunter"].emotional_anchor == "fear_of_overpaying"
+    assert (
+        catalog_cached.drivers["deal_hunter"].emotional_anchor == "fear_of_overpaying"
+    )
 
     custom_extractor.clear_cache()
     catalog_updated = custom_extractor.load_catalog(PersonaMode.B2C)

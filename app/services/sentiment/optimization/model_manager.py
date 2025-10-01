@@ -6,24 +6,21 @@ resource management for cost-effective sentiment analysis.
 """
 
 import asyncio
-import os
-import pickle
 import hashlib
 import json
 import shutil
-import time
 import threading
+import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
-import logging
-import psutil
+from typing import Any, Dict, List, Optional, Tuple
 
+import psutil
 import torch
 import torch.nn as nn
 from transformers import (
-    AutoTokenizer,
     AutoModelForSequenceClassification,
-    BitsAndBytesConfig
+    AutoTokenizer,
+    BitsAndBytesConfig,
 )
 
 from app.utils.logger import get_logger
@@ -51,8 +48,9 @@ class MemoryMonitor:
             for i in range(torch.cuda.device_count()):
                 gpu_memory[f"gpu_{i}"] = {
                     "allocated": torch.cuda.memory_allocated(i) / 1024**3,  # GB
-                    "cached": torch.cuda.memory_reserved(i) / 1024**3,      # GB
-                    "total": torch.cuda.get_device_properties(i).total_memory / 1024**3
+                    "cached": torch.cuda.memory_reserved(i) / 1024**3,  # GB
+                    "total": torch.cuda.get_device_properties(i).total_memory
+                    / 1024**3,
                 }
 
         return {
@@ -60,7 +58,7 @@ class MemoryMonitor:
             "system_memory_usage": system_memory.percent,
             "available_memory_gb": system_memory.available / 1024**3,
             "total_memory_gb": system_memory.total / 1024**3,
-            "gpu_memory": gpu_memory
+            "gpu_memory": gpu_memory,
         }
 
     def should_cleanup(self) -> bool:
@@ -88,7 +86,7 @@ class ModelOptimizer:
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
+                bnb_4bit_quant_type="nf4",
             )
 
             # Note: This requires the model to be loaded with the config
@@ -120,7 +118,7 @@ class ModelOptimizer:
             model.eval()
 
             # Compile model for better performance (PyTorch 2.0+)
-            if hasattr(torch, 'compile'):
+            if hasattr(torch, "compile"):
                 try:
                     model = torch.compile(model, mode="reduce-overhead")
                     logger.info("Applied torch.compile optimization")
@@ -129,7 +127,7 @@ class ModelOptimizer:
 
             # Fuse layers if possible
             try:
-                if hasattr(model, 'fuse_modules'):
+                if hasattr(model, "fuse_modules"):
                     model.fuse_modules()
                     logger.info("Applied layer fusion")
             except Exception as e:
@@ -149,7 +147,7 @@ class ModelCache:
         self,
         cache_dir: str = "model_cache",
         max_cache_size_gb: float = 5.0,
-        compression: bool = True
+        compression: bool = True,
     ):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
@@ -168,30 +166,22 @@ class ModelCache:
         """Load cache metadata"""
         if self.metadata_file.exists():
             try:
-                with open(self.metadata_file, 'r') as f:
+                with open(self.metadata_file, "r") as f:
                     return json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to load cache metadata: {e}")
 
-        return {
-            "cached_models": {},
-            "total_size_gb": 0.0,
-            "last_cleanup": time.time()
-        }
+        return {"cached_models": {}, "total_size_gb": 0.0, "last_cleanup": time.time()}
 
     def _save_metadata(self):
         """Save cache metadata"""
         try:
-            with open(self.metadata_file, 'w') as f:
+            with open(self.metadata_file, "w") as f:
                 json.dump(self.metadata, f, indent=2)
         except Exception as e:
             logger.warning(f"Failed to save cache metadata: {e}")
 
-    def _generate_cache_key(
-        self,
-        model_name: str,
-        optimization_config: Dict
-    ) -> str:
+    def _generate_cache_key(self, model_name: str, optimization_config: Dict) -> str:
         """Generate unique cache key"""
         config_str = json.dumps(optimization_config, sort_keys=True)
         key_data = f"{model_name}_{config_str}"
@@ -213,13 +203,14 @@ class ModelCache:
         if current_size <= self.max_cache_size_gb:
             return
 
-        logger.info(f"Cache size {current_size:.2f}GB exceeds limit {self.max_cache_size_gb}GB")
+        logger.info(
+            f"Cache size {current_size:.2f}GB exceeds limit {self.max_cache_size_gb}GB"
+        )
 
         # Sort cached models by last access time
         cached_models = self.metadata.get("cached_models", {})
         sorted_models = sorted(
-            cached_models.items(),
-            key=lambda x: x[1].get("last_accessed", 0)
+            cached_models.items(), key=lambda x: x[1].get("last_accessed", 0)
         )
 
         # Remove oldest models until under limit
@@ -239,23 +230,17 @@ class ModelCache:
         self.metadata["last_cleanup"] = time.time()
         self._save_metadata()
 
-    def is_cached(
-        self,
-        model_name: str,
-        optimization_config: Dict
-    ) -> bool:
+    def is_cached(self, model_name: str, optimization_config: Dict) -> bool:
         """Check if model is cached"""
         cache_key = self._generate_cache_key(model_name, optimization_config)
         cache_path = self.cache_dir / cache_key
 
-        return cache_path.exists() and cache_key in self.metadata.get("cached_models", {})
+        return cache_path.exists() and cache_key in self.metadata.get(
+            "cached_models", {}
+        )
 
     async def cache_model(
-        self,
-        model_name: str,
-        model,
-        tokenizer,
-        optimization_config: Dict
+        self, model_name: str, model, tokenizer, optimization_config: Dict
     ) -> bool:
         """Cache model with optimization config"""
         try:
@@ -267,16 +252,14 @@ class ModelCache:
 
             # Save model and tokenizer
             await loop.run_in_executor(
-                None,
-                lambda: model.save_pretrained(cache_path / "model")
+                None, lambda: model.save_pretrained(cache_path / "model")
             )
             await loop.run_in_executor(
-                None,
-                lambda: tokenizer.save_pretrained(cache_path / "tokenizer")
+                None, lambda: tokenizer.save_pretrained(cache_path / "tokenizer")
             )
 
             # Save optimization config
-            with open(cache_path / "optimization_config.json", 'w') as f:
+            with open(cache_path / "optimization_config.json", "w") as f:
                 json.dump(optimization_config, f, indent=2)
 
             # Calculate size
@@ -290,7 +273,7 @@ class ModelCache:
                 "optimization_config": optimization_config,
                 "cached_at": time.time(),
                 "last_accessed": time.time(),
-                "size_gb": size_gb
+                "size_gb": size_gb,
             }
 
             self.metadata["total_size_gb"] = self._calculate_cache_size()
@@ -307,9 +290,7 @@ class ModelCache:
             return False
 
     async def load_cached_model(
-        self,
-        model_name: str,
-        optimization_config: Dict
+        self, model_name: str, optimization_config: Dict
     ) -> Tuple[Optional[Any], Optional[Any]]:
         """Load cached model and tokenizer"""
         cache_key = self._generate_cache_key(model_name, optimization_config)
@@ -323,8 +304,7 @@ class ModelCache:
 
             # Load tokenizer
             tokenizer = await loop.run_in_executor(
-                None,
-                lambda: AutoTokenizer.from_pretrained(cache_path / "tokenizer")
+                None, lambda: AutoTokenizer.from_pretrained(cache_path / "tokenizer")
             )
 
             # Load model with optimization config
@@ -333,22 +313,22 @@ class ModelCache:
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=torch.float16,
                     bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4"
+                    bnb_4bit_quant_type="nf4",
                 )
                 model = await loop.run_in_executor(
                     None,
                     lambda: AutoModelForSequenceClassification.from_pretrained(
                         cache_path / "model",
                         quantization_config=quantization_config,
-                        device_map="auto"
-                    )
+                        device_map="auto",
+                    ),
                 )
             else:
                 model = await loop.run_in_executor(
                     None,
                     lambda: AutoModelForSequenceClassification.from_pretrained(
                         cache_path / "model"
-                    )
+                    ),
                 )
 
             # Update access time
@@ -370,9 +350,11 @@ class ModelCache:
             "total_models": len(cached_models),
             "total_size_gb": self._calculate_cache_size(),
             "max_size_gb": self.max_cache_size_gb,
-            "utilization": min(1.0, self._calculate_cache_size() / self.max_cache_size_gb),
+            "utilization": min(
+                1.0, self._calculate_cache_size() / self.max_cache_size_gb
+            ),
             "cached_models": list(cached_models.keys()),
-            "last_cleanup": self.metadata.get("last_cleanup", 0)
+            "last_cleanup": self.metadata.get("last_cleanup", 0),
         }
 
     def clear_cache(self):
@@ -387,7 +369,7 @@ class ModelCache:
             self.metadata = {
                 "cached_models": {},
                 "total_size_gb": 0.0,
-                "last_cleanup": time.time()
+                "last_cleanup": time.time(),
             }
             self._save_metadata()
 
@@ -414,7 +396,7 @@ class ModelManager:
         cache_dir: str = "optimized_models",
         max_cache_size_gb: float = 10.0,
         memory_threshold: float = 0.8,
-        auto_optimization: bool = True
+        auto_optimization: bool = True,
     ):
         self.cache = ModelCache(cache_dir, max_cache_size_gb)
         self.memory_monitor = MemoryMonitor()
@@ -436,8 +418,7 @@ class ModelManager:
 
         self._monitoring_active = True
         self._monitoring_thread = threading.Thread(
-            target=self._background_monitor,
-            daemon=True
+            target=self._background_monitor, daemon=True
         )
         self._monitoring_thread.start()
         logger.info("Started background memory monitoring")
@@ -483,9 +464,7 @@ class ModelManager:
         self.memory_monitor.cleanup_if_needed()
 
     async def load_optimized_model(
-        self,
-        model_name: str,
-        optimization_config: Optional[Dict] = None
+        self, model_name: str, optimization_config: Optional[Dict] = None
     ) -> Tuple[Optional[Any], Optional[Any]]:
         """
         Load model with optimizations, using cache when possible.
@@ -547,9 +526,7 @@ class ModelManager:
             return None, None
 
     async def _load_fresh_model(
-        self,
-        model_name: str,
-        optimization_config: Dict
+        self, model_name: str, optimization_config: Dict
     ) -> Tuple[Optional[Any], Optional[Any]]:
         """Load and optimize a fresh model"""
 
@@ -557,8 +534,7 @@ class ModelManager:
 
         # Load tokenizer
         tokenizer = await loop.run_in_executor(
-            None,
-            lambda: AutoTokenizer.from_pretrained(model_name)
+            None, lambda: AutoTokenizer.from_pretrained(model_name)
         )
 
         # Load model based on optimization config
@@ -569,7 +545,7 @@ class ModelManager:
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
+                bnb_4bit_quant_type="nf4",
             )
             model = await loop.run_in_executor(
                 None,
@@ -577,31 +553,30 @@ class ModelManager:
                     model_name,
                     quantization_config=quantization_config,
                     device_map="auto",
-                    torch_dtype=torch.float16
-                )
+                    torch_dtype=torch.float16,
+                ),
             )
         elif quantization == "8bit":
             model = await loop.run_in_executor(
                 None,
                 lambda: AutoModelForSequenceClassification.from_pretrained(
-                    model_name,
-                    load_in_8bit=True,
-                    device_map="auto"
-                )
+                    model_name, load_in_8bit=True, device_map="auto"
+                ),
             )
         else:
             model = await loop.run_in_executor(
                 None,
                 lambda: AutoModelForSequenceClassification.from_pretrained(
-                    model_name,
-                    torch_dtype=torch.float16
-                )
+                    model_name, torch_dtype=torch.float16
+                ),
             )
 
         # Apply optimizations
         model = self._apply_runtime_optimizations(model, optimization_config)
 
-        logger.info(f"Loaded fresh model: {model_name} with config: {optimization_config}")
+        logger.info(
+            f"Loaded fresh model: {model_name} with config: {optimization_config}"
+        )
 
         return model, tokenizer
 
@@ -613,7 +588,7 @@ class ModelManager:
 
         if optimization_config.get("compile", False):
             try:
-                if hasattr(torch, 'compile'):
+                if hasattr(torch, "compile"):
                     model = torch.compile(model, mode="reduce-overhead")
             except Exception as e:
                 logger.warning(f"Model compilation failed: {e}")
@@ -630,21 +605,21 @@ class ModelManager:
                 "quantization": "4bit",
                 "inference_optimization": True,
                 "compile": False,
-                "max_length": 256
+                "max_length": 256,
             }
         elif memory_usage["available_memory_gb"] < 8:
             return {
                 "quantization": "8bit",
                 "inference_optimization": True,
                 "compile": True,
-                "max_length": 512
+                "max_length": 512,
             }
         else:
             return {
                 "quantization": "none",
                 "inference_optimization": True,
                 "compile": True,
-                "max_length": 512
+                "max_length": 512,
             }
 
     def _generate_model_key(self, model_name: str, optimization_config: Dict) -> str:
@@ -659,7 +634,7 @@ class ModelManager:
                 "load_count": 0,
                 "total_usage_time": 0,
                 "last_used": time.time(),
-                "first_loaded": time.time()
+                "first_loaded": time.time(),
             }
 
         stats = self._model_usage_stats[model_key]
@@ -677,7 +652,7 @@ class ModelManager:
             "active_models": len(self._active_models),
             "model_usage_stats": self._model_usage_stats,
             "monitoring_active": self._monitoring_active,
-            "optimization_recommendations": self._get_optimization_recommendations()
+            "optimization_recommendations": self._get_optimization_recommendations(),
         }
 
     def _get_optimization_recommendations(self) -> List[str]:
@@ -696,7 +671,9 @@ class ModelManager:
             recommendations.append("Cache nearly full - consider increasing cache size")
 
         if not self._monitoring_active:
-            recommendations.append("Start background monitoring for better resource management")
+            recommendations.append(
+                "Start background monitoring for better resource management"
+            )
 
         return recommendations
 

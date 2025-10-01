@@ -22,8 +22,10 @@ services:
       - db
       - redis
     volumes:
+      - ./app:/app/app
       - ./reports:/app/reports
       - ./alembic:/app/alembic
+      - ./scripts:/app/scripts
 
   worker:
     build: .
