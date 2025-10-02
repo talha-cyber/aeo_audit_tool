@@ -23,7 +23,7 @@ aioredis>=2.0.0
 
 # AI Platform APIs
 openai>=1.14
-anthropic==0.7.7
+anthropic==0.69.0
 requests>=2.32.4
 
 # NLP & Text Processing
