@@ -1,4 +1,7 @@
 .env
+*.env.local
+*.env.*.local
+frontend/.env.local
 __pycache__/
 *.pyc
 *.log

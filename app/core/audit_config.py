@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, Dict
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AuditBatchStrategy(str, Enum):
@@ -27,6 +27,14 @@ class AuditRetryStrategy(str, Enum):
 
 class AuditSettings(BaseSettings):
     """Comprehensive audit processor configuration"""
+
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_prefix="AUDIT_",
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
     # Batch Processing Configuration
     AUDIT_BATCH_SIZE: int = Field(
@@ -208,12 +216,6 @@ class AuditSettings(BaseSettings):
             }
             return platform_optimizations.get(platform, self.AUDIT_BATCH_SIZE)
         return self.AUDIT_BATCH_SIZE
-
-    class Config:
-        env_prefix = "AUDIT_"
-        case_sensitive = True
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 # Global audit settings instance

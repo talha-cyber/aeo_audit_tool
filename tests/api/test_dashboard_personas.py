@@ -55,7 +55,9 @@ def test_dashboard_persona_catalog_default_mode() -> None:
     data = response.json()
     assert data["mode"] == "b2c"
     assert isinstance(data["voices"], list)
-    assert any(voice["key"] == "value_shopper" for voice in data["voices"])  # ensures preset surface
+    assert any(
+        voice["key"] == "value_shopper" for voice in data["voices"]
+    )  # ensures preset surface
 
 
 def test_dashboard_personas_catalog_mode_switch() -> None:
@@ -116,7 +118,9 @@ def test_dashboard_persona_update_clone_and_delete_cycle() -> None:
         "name": "Value Shopper",
         "priority": "primary",
     }
-    create_response = client.post("/api/v1/dashboard/personas/custom", json=create_payload)
+    create_response = client.post(
+        "/api/v1/dashboard/personas/custom", json=create_payload
+    )
     assert create_response.status_code == 200
     created = create_response.json()
     persona_id = created["id"]

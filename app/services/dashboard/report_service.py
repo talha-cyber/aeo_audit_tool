@@ -5,21 +5,37 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.v1.dashboard_schemas import CoverageView, ReportSummaryView
-from app.models.audit import AuditRun
+from app.models.audit import AuditRun, Client
 from app.models.report import Report
 from app.services.dashboard.static_data import default_report_summaries
 
 __all__ = ["list_reports"]
 
 
-def list_reports(db: Session, *, limit: Optional[int] = None) -> List[ReportSummaryView]:
+def list_reports(
+    db: Session,
+    *,
+    limit: Optional[int] = None,
+    exclude_internal: bool = False,
+) -> List[ReportSummaryView]:
     """Return generated reports in reverse chronological order."""
 
-    query = db.query(Report).options(selectinload(Report.audit_run)).order_by(desc(Report.generated_at))
+    query = (
+        db.query(Report)
+        .options(selectinload(Report.audit_run).selectinload(AuditRun.client))
+        .order_by(desc(Report.generated_at))
+    )
+    if exclude_internal:
+        query = (
+            query.outerjoin(Report.audit_run)
+            .outerjoin(AuditRun.client)
+            .filter(or_(Client.id.is_(None), Client.is_internal.is_(False)))
+            .distinct()
+        )
     if limit:
         query = query.limit(limit)
 
@@ -58,14 +74,22 @@ def _report_coverage(report: Report) -> CoverageView:
 def report_title(report: Report) -> str:
     if report.report_type:
         return f"{report.report_type.replace('_', ' ').title()}"
-    return report.file_path.split("/")[-1] if report.file_path else f"Report {report.id[:8]}"
+    return (
+        report.file_path.split("/")[-1]
+        if report.file_path
+        else f"Report {report.id[:8]}"
+    )
 
 
 def _fallback_reports() -> List[ReportSummaryView]:
     summaries: List[ReportSummaryView] = []
     for payload in default_report_summaries():
         generated_at = payload.get("generated_at")
-        timestamp = datetime.fromisoformat(generated_at) if isinstance(generated_at, str) else datetime.now()
+        timestamp = (
+            datetime.fromisoformat(generated_at)
+            if isinstance(generated_at, str)
+            else datetime.now()
+        )
         coverage = payload.get("coverage", {})
         summaries.append(
             ReportSummaryView(

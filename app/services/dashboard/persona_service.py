@@ -12,12 +12,13 @@ from app.api.v1.dashboard_schemas import (
     PersonaCatalogRoleView,
     PersonaCatalogView,
     PersonaCatalogVoiceView,
+    PersonaComposeRequest,
     PersonaLibraryEntryView,
     PersonaLibraryResponse,
     PersonaStageView,
+    PersonaUpdateRequest,
     PersonaView,
 )
-from app.api.v1.dashboard_schemas import PersonaComposeRequest, PersonaUpdateRequest
 from app.services.dashboard.persona_store import PersonaLibraryStore, PersonaRecord
 from app.services.dashboard.static_data import default_personas
 from app.services.question_engine_v2.persona_extractor import (
@@ -91,6 +92,7 @@ def list_personas(
     mode: PersonaMode,
     *,
     owner_id: Optional[str] = None,
+    client_id: Optional[str] = None,
 ) -> List[PersonaView]:
     """Return personas derived from the catalog plus any user-defined personas."""
 
@@ -112,11 +114,11 @@ def list_personas(
             for persona in resolved
         ]
 
-    if not owner_id:
+    if not owner_id or not client_id:
         return catalog_views
 
     library = PersonaLibraryStore(db)
-    custom_records = library.list(owner_id, mode=mode.value)
+    custom_records = library.list(owner_id, client_id=client_id, mode=mode.value)
     custom_views = [
         _record_to_view(record, catalog) if catalog else _record_to_view(record, None)
         for record in custom_records
@@ -125,13 +127,16 @@ def list_personas(
 
 
 def list_persona_library(
-    db: Session, owner_id: str, mode: PersonaMode
+    db: Session,
+    owner_id: str,
+    client_id: str,
+    mode: PersonaMode,
 ) -> PersonaLibraryResponse:
     """Return the stored persona library for a specific owner and mode."""
 
     catalog = _load_catalog(mode)
     library = PersonaLibraryStore(db)
-    records = library.list(owner_id, mode=mode.value)
+    records = library.list(owner_id, client_id=client_id, mode=mode.value)
     entries = [_record_to_library_entry(record, catalog) for record in records]
     return PersonaLibraryResponse(personas=entries)
 
@@ -141,6 +146,11 @@ def create_persona(
     payload: PersonaComposeRequest,
 ) -> PersonaLibraryEntryView:
     """Compose and persist a persona for an owner from provided selections."""
+
+    if not payload.owner_id:
+        raise ValueError("Persona ownerId is required")
+    if not payload.client_id:
+        raise ValueError("Persona clientId is required")
 
     catalog = _load_catalog(payload.mode)
     persona_resolution = _resolve_from_selection(
@@ -164,9 +174,10 @@ def create_persona(
     name = payload.name or (role.label if role else persona_resolution.role)
     segment = payload.segment or payload.mode.value.upper()
     priority = payload.priority or "secondary"
-    key_need = (
-        payload.key_need
-        or (driver.label if driver and driver.label else persona_resolution.emotional_anchor or "")
+    key_need = payload.key_need or (
+        driver.label
+        if driver and driver.label
+        else persona_resolution.emotional_anchor or ""
     )
 
     meta = {
@@ -175,11 +186,13 @@ def create_persona(
         "driver": persona_resolution.driver,
         "voice": payload.voice,
         "contextKeys": list(persona_resolution.contexts),
+        "clientId": payload.client_id,
     }
 
     library = PersonaLibraryStore(db)
     record = library.new_record(
         owner_id=payload.owner_id,
+        client_id=payload.client_id,
         mode=payload.mode.value,
         name=name,
         segment=segment,
@@ -201,15 +214,25 @@ def update_persona(
 ) -> PersonaLibraryEntryView:
     """Update an existing persona belonging to an owner."""
 
-    mode = payload.mode if hasattr(payload, "mode") else PersonaMode.B2C
-    if isinstance(mode, str):
-        mode = PersonaMode(mode)
+    if not payload.owner_id:
+        raise ValueError("Persona ownerId is required")
+    if not payload.client_id:
+        raise ValueError("Persona clientId is required")
 
-    catalog = _load_catalog(mode)
     library = PersonaLibraryStore(db)
-    record = library.get(payload.owner_id, persona_id)
+    record = library.get(payload.owner_id, payload.client_id, persona_id)
     if record is None:
         raise PersonaCatalogError("Persona not found for owner")
+
+    # The mode of the persona cannot be changed. Use the existing record's mode.
+    mode = PersonaMode(record.mode)
+    if payload.mode and payload.mode != mode:
+        raise ValueError(
+            f"Cannot change persona mode. "
+            f"Existing persona is '{mode.value}', update requested for '{payload.mode.value}'."
+        )
+
+    catalog = _load_catalog(mode)
 
     voice = payload.voice if payload.voice is not None else record.voice
     role = payload.role if payload.role is not None else record.role
@@ -235,21 +258,30 @@ def update_persona(
     role_meta = catalog.roles.get(persona_resolution.role)
     driver_meta = catalog.drivers.get(persona_resolution.driver)
 
-    record.name = payload.name or record.name or (
-        role_meta.label if role_meta else persona_resolution.role
+    record.name = (
+        payload.name
+        or record.name
+        or (role_meta.label if role_meta else persona_resolution.role)
     )
-    record.segment = payload.segment or record.segment or PersonaMode(record.mode).value.upper()
+    record.segment = (
+        payload.segment or record.segment or PersonaMode(record.mode).value.upper()
+    )
     record.priority = payload.priority or record.priority
     record.key_need = (
         payload.key_need
         or record.key_need
-        or (driver_meta.label if driver_meta and driver_meta.label else persona_resolution.emotional_anchor or "")
+        or (
+            driver_meta.label
+            if driver_meta and driver_meta.label
+            else persona_resolution.emotional_anchor or ""
+        )
     )
     record.journey_stage = [dict(stage) for stage in journey_stage]
     record.role = persona_resolution.role
     record.driver = persona_resolution.driver
     record.voice = voice
     record.contexts = list(persona_resolution.contexts)
+    record.client_id = payload.client_id
     record.meta.update(
         {
             "source": "custom",
@@ -258,6 +290,7 @@ def update_persona(
             "voice": record.voice,
             "contextKeys": list(record.contexts),
             "mode": mode.value,
+            "clientId": payload.client_id,
         }
     )
     record.mode = mode.value
@@ -267,18 +300,24 @@ def update_persona(
 
 
 def clone_persona(
-    db: Session, persona_id: str, owner_id: str, *, name: Optional[str] = None
+    db: Session,
+    persona_id: str,
+    owner_id: str,
+    client_id: str,
+    *,
+    name: Optional[str] = None,
 ) -> PersonaLibraryEntryView:
     """Duplicate a stored persona for the same owner."""
 
     library = PersonaLibraryStore(db)
-    record = library.get(owner_id, persona_id)
+    record = library.get(owner_id, client_id, persona_id)
     if record is None:
         raise PersonaCatalogError("Persona not found for cloning")
 
     catalog = _load_catalog(PersonaMode(record.mode))
     clone = library.new_record(
         owner_id=owner_id,
+        client_id=client_id,
         mode=record.mode,
         name=name or f"{record.name} Copy",
         segment=record.segment,
@@ -295,11 +334,11 @@ def clone_persona(
     return _record_to_library_entry(clone, catalog)
 
 
-def delete_persona(db: Session, persona_id: str, owner_id: str) -> bool:
+def delete_persona(db: Session, persona_id: str, owner_id: str, client_id: str) -> bool:
     """Delete a stored persona belonging to an owner."""
 
     library = PersonaLibraryStore(db)
-    return library.delete(owner_id, persona_id)
+    return library.delete(owner_id, client_id, persona_id)
 
 
 # ---------------------------------------------------------------------------
@@ -354,7 +393,9 @@ def _resolve_from_selection(
     extractor = PersonaExtractor()
     resolved = extractor.resolve_personas(mode, selections=[selection])
     if not resolved:
-        raise PersonaCatalogError("Unable to resolve persona with supplied specification")
+        raise PersonaCatalogError(
+            "Unable to resolve persona with supplied specification"
+        )
     return resolved[-1]
 
 
@@ -396,7 +437,8 @@ def _resolution_to_view(
     coverage = 1.0 / len(contexts) if contexts else 1.0
 
     journey = [
-        PersonaStageView(stage=stage, question="", coverage=coverage) for stage in contexts
+        PersonaStageView(stage=stage, question="", coverage=coverage)
+        for stage in contexts
     ]
 
     identifier = "-".join(
@@ -413,7 +455,9 @@ def _resolution_to_view(
         name=role.label if role else persona.role,
         segment=persona.mode.value.upper(),
         priority=priority,
-        key_need=(driver.label if driver and driver.label else persona.emotional_anchor or ""),
+        key_need=(
+            driver.label if driver and driver.label else persona.emotional_anchor or ""
+        ),
         journey_stage=journey,
         meta={
             "source": source,
@@ -425,7 +469,9 @@ def _resolution_to_view(
     )
 
 
-def _prepare_contexts(context_keys: Iterable[str], catalog: PersonaCatalog) -> List[str]:
+def _prepare_contexts(
+    context_keys: Iterable[str], catalog: PersonaCatalog
+) -> List[str]:
     contexts: List[str] = []
     for key in context_keys:
         context = catalog.contexts.get(key)
@@ -456,12 +502,12 @@ def _build_journey_stage(
 
     labels = _prepare_contexts(context_keys, catalog)
     coverage = 1.0 / len(labels) if labels else 1.0
-    return [
-        {"stage": label, "question": "", "coverage": coverage} for label in labels
-    ]
+    return [{"stage": label, "question": "", "coverage": coverage} for label in labels]
 
 
-def _record_to_view(record: PersonaRecord, catalog: Optional[PersonaCatalog]) -> PersonaView:
+def _record_to_view(
+    record: PersonaRecord, catalog: Optional[PersonaCatalog]
+) -> PersonaView:
     contexts = record.contexts
     if catalog:
         labels = _prepare_contexts(contexts, catalog)
@@ -491,9 +537,14 @@ def _record_to_view(record: PersonaRecord, catalog: Optional[PersonaCatalog]) ->
             "driver": record.driver,
             "voice": record.voice,
             "contextKeys": list(contexts),
-            "createdAt": record.created_at.isoformat() if hasattr(record.created_at, 'isoformat') else str(record.created_at),
-            "updatedAt": record.updated_at.isoformat() if hasattr(record.updated_at, 'isoformat') else str(record.updated_at),
+            "createdAt": record.created_at.isoformat()
+            if hasattr(record.created_at, "isoformat")
+            else str(record.created_at),
+            "updatedAt": record.updated_at.isoformat()
+            if hasattr(record.updated_at, "isoformat")
+            else str(record.updated_at),
             "mode": record.mode,
+            "clientId": record.client_id,
         },
     )
 
@@ -516,6 +567,11 @@ def _record_to_library_entry(
         driver=record.driver,
         voice=record.voice,
         context_keys=list(record.contexts),
-        created_at=record.created_at.isoformat() if hasattr(record.created_at, 'isoformat') else str(record.created_at),
-        updated_at=record.updated_at.isoformat() if hasattr(record.updated_at, 'isoformat') else str(record.updated_at),
+        client_id=record.client_id,
+        created_at=record.created_at.isoformat()
+        if hasattr(record.created_at, "isoformat")
+        else str(record.created_at),
+        updated_at=record.updated_at.isoformat()
+        if hasattr(record.updated_at, "isoformat")
+        else str(record.updated_at),
     )

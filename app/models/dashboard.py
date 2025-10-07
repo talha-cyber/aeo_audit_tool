@@ -21,7 +21,9 @@ class DashboardSettings(Base):
     billing_plan = Column(String, nullable=False, default="Agency Pro")
     billing_renews_on = Column(DateTime(timezone=True), nullable=True)
 
-    members = relationship("DashboardMember", cascade="all, delete-orphan", back_populates="settings")
+    members = relationship(
+        "DashboardMember", cascade="all, delete-orphan", back_populates="settings"
+    )
     integrations = relationship(
         "DashboardIntegration", cascade="all, delete-orphan", back_populates="settings"
     )
@@ -33,7 +35,9 @@ class DashboardMember(Base):
     __tablename__ = "dashboard_members"
 
     id = Column(Integer, primary_key=True, index=True)
-    settings_id = Column(Integer, ForeignKey("dashboard_settings.id", ondelete="CASCADE"), nullable=False)
+    settings_id = Column(
+        Integer, ForeignKey("dashboard_settings.id", ondelete="CASCADE"), nullable=False
+    )
     name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     email = Column(String, nullable=False)
@@ -47,7 +51,9 @@ class DashboardIntegration(Base):
     __tablename__ = "dashboard_integrations"
 
     id = Column(Integer, primary_key=True, index=True)
-    settings_id = Column(Integer, ForeignKey("dashboard_settings.id", ondelete="CASCADE"), nullable=False)
+    settings_id = Column(
+        Integer, ForeignKey("dashboard_settings.id", ondelete="CASCADE"), nullable=False
+    )
     name = Column(String, nullable=False)
     connected = Column(Boolean, nullable=False, default=False)
 
@@ -66,4 +72,3 @@ class DashboardWidget(Base):
     status = Column(String, nullable=False, default="draft")
     category = Column(String, nullable=True)
     description = Column(String, nullable=True)
-

@@ -1,0 +1,104 @@
+/**
+ * Paleolithic Theme
+ *
+ * A warm, earthy design system inspired by stone age aesthetics and human-centered
+ * simplicity. This theme brings together beige, maroon, and natural tones to create
+ * an intuitive, accessible interface reminiscent of simple tools for a new era.
+ *
+ * Design Philosophy:
+ * - Warm and approachable (like Anthropic's design language)
+ * - Natural, earthy tones that feel organic and grounded
+ * - High contrast for accessibility
+ * - Timeless elegance through minimalism
+ */
+
+:root[data-theme="paleolithic"] {
+  /* Primary Surface Colors - Warm Beiges & Creams */
+  --bg: #FAF7F2;                    /* Soft ivory - main background */
+  --surface: #F0EBE3;               /* Warm beige - card backgrounds */
+  --elev1: #E6DCCF;                 /* Deeper beige - elevated surfaces */
+
+  /* Border & Dividers - Subtle Earth Tones */
+  --border: #D4C4B0;                /* Warm taupe - borders and dividers */
+  --border-subtle: #E6DCCF;         /* Lighter border for nested elements */
+
+  /* Text Colors - Rich Browns */
+  --text: #3A2E2A;                  /* Deep warm brown - primary text */
+  --text-heading: #2A1F1B;          /* Darker brown - headings */
+  --muted: #7A6A5C;                 /* Mid-tone brown - secondary text */
+
+  /* Accent Colors - Maroon & Rust */
+  --accent: #9B5845;                /* Warm maroon/rust - primary accent */
+  --accent-hover: #824A3A;          /* Darker maroon - hover states */
+  --accent-light: #C17B66;          /* Light rust - subtle accents */
+  --accent-subtle: #E8CEC4;         /* Very light peach - accent backgrounds */
+
+  /* Semantic Colors - Earthy Variants */
+  --success: #6B7F5E;               /* Sage green */
+  --success-bg: #E8EDE5;            /* Light sage background */
+  --warning: #C4965A;               /* Ochre yellow */
+  --warning-bg: #F5EFE3;            /* Light ochre background */
+  --error: #A04840;                 /* Terracotta red */
+  --error-bg: #F0E3E1;              /* Light terracotta background */
+  --info: #6B7E8F;                  /* Stone blue */
+  --info-bg: #E5E9ED;               /* Light blue-grey background */
+
+  /* Interactive States */
+  --hover-overlay: rgba(155, 88, 69, 0.08);     /* Subtle maroon tint */
+  --active-overlay: rgba(155, 88, 69, 0.12);    /* Slightly stronger */
+  --focus-ring: rgba(155, 88, 69, 0.3);         /* Focus indicator */
+
+  /* Shadows - Warm & Soft */
+  --shadow-sm: 0 1px 2px rgba(58, 46, 42, 0.06);
+  --shadow-md: 0 4px 8px rgba(58, 46, 42, 0.08);
+  --shadow-lg: 0 12px 24px rgba(58, 46, 42, 0.1);
+  --shadow-xl: 0 20px 40px rgba(58, 46, 42, 0.12);
+
+  /* Hand-drawn Element Colors - For SVG Illustrations */
+  --sketch-primary: #8B6B4D;        /* Burnt umber */
+  --sketch-secondary: #B8956A;      /* Sandy brown */
+  --sketch-accent: #A05547;         /* Rustic red */
+  --sketch-neutral: #5A4A3F;        /* Dark earth */
+}
+
+:root[data-theme="paleolithic"].dark {
+  /* Dark Mode - Inverted Earth Tones */
+  --bg: #1C1815;                    /* Deep charcoal brown */
+  --surface: #2A2420;               /* Dark earth */
+  --elev1: #352E28;                 /* Elevated dark surface */
+
+  --border: #4A3F36;                /* Mid-tone border */
+  --border-subtle: #352E28;         /* Subtle border */
+
+  --text: #EDE5DB;                  /* Cream text */
+  --text-heading: #F5EFE7;          /* Off-white headings */
+  --muted: #A89880;                 /* Muted tan */
+
+  --accent: #C17B66;                /* Lighter rust for dark mode */
+  --accent-hover: #D89580;          /* Lighter on hover */
+  --accent-light: #9B5845;          /* Darker variant */
+  --accent-subtle: #3A2E28;         /* Dark accent background */
+
+  --success: #8DA67E;
+  --success-bg: #2A3127;
+  --warning: #D4A86A;
+  --warning-bg: #3A3125;
+  --error: #C16B62;
+  --error-bg: #3A2725;
+  --info: #8B9DAD;
+  --info-bg: #252A30;
+
+  --hover-overlay: rgba(193, 123, 102, 0.12);
+  --active-overlay: rgba(193, 123, 102, 0.18);
+  --focus-ring: rgba(193, 123, 102, 0.4);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.35);
+
+  --sketch-primary: #B8956A;
+  --sketch-secondary: #8B6B4D;
+  --sketch-accent: #C17B66;
+  --sketch-neutral: #9B8672;
+}

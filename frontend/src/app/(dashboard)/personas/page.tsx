@@ -12,6 +12,7 @@ import {
   usePersonas,
   useUpdatePersona
 } from '@/lib/api/queries';
+import { getFallbackPersonaCatalog } from '@/lib/api/mockClient';
 import type {
   Persona,
   PersonaCatalogVoice,
@@ -52,6 +53,7 @@ export default function PersonasPage() {
   const personasQuery = usePersonas(mode);
   const personaLibraryQuery = usePersonaLibrary(mode);
   const catalogQuery = usePersonaCatalog(mode);
+  const fallbackCatalog = useMemo(() => getFallbackPersonaCatalog(mode), [mode]);
 
   const createPersona = useCreatePersona();
   const updatePersona = useUpdatePersona();
@@ -65,9 +67,11 @@ export default function PersonasPage() {
 
   const personas = personasQuery.data ?? [];
   const personaLibrary = personaLibraryQuery.data?.personas ?? [];
-  const catalog = catalogQuery.data;
-  const catalogLoading = catalogQuery.isLoading;
+  const remoteCatalog = catalogQuery.data;
+  const catalog = remoteCatalog ?? fallbackCatalog;
+  const catalogLoading = !catalog?.voices?.length && catalogQuery.isLoading;
   const catalogError = catalogQuery.error as Error | null;
+  const usingFallbackCatalog = !remoteCatalog;
 
   const isEditing = Boolean(editingPersonaId);
   const selectedPersona = personas.find((persona) => persona.id === activePersonaId) ?? null;
@@ -293,6 +297,11 @@ export default function PersonasPage() {
             {catalogLoading ? 'Loading presets…' : 'Add persona'}
           </Button>
         </div>
+        {catalogError && usingFallbackCatalog ? (
+          <p className="w-full text-xs text-accent">
+            Presets loaded from local fallback; catalog request failed. {catalogError?.message}
+          </p>
+        ) : null}
       </section>
 
       <Card corner>

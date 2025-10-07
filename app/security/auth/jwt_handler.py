@@ -44,7 +44,53 @@ class JWTHandler:
     def create_token(
         self, subject: str, claims: Optional[Dict[str, Any]] = None
     ) -> str:
-        header = {"alg": self.config.algorithm, "typ": "JWT"}
+        payload = self._build_payload(subject, claims)
+        return self._encode(payload)
+
+    def mint_act_as_token(
+        self,
+        *,
+        subject: str,
+        actor_id: str,
+        target_client_id: str,
+        ttl_seconds: int = 900,
+        capabilities: Optional[list[str]] = None,
+    ) -> str:
+        now = int(time.time())
+        payload: Dict[str, Any] = {
+            "sub": subject,
+            "iat": now,
+            "exp": now + int(max(1, ttl_seconds)),
+            "act_as": {
+                "client_id": target_client_id,
+                "actor": actor_id,
+                "issued_at": now,
+            },
+            "session_type": "act_as",
+        }
+        if self.config.issuer:
+            payload["iss"] = self.config.issuer
+        if capabilities:
+            payload["capabilities"] = capabilities
+        return self._encode(payload)
+
+    def parse_act_as_claims(self, claims: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        act_as = claims.get("act_as")
+        if not isinstance(act_as, dict):
+            return None
+        client_id = act_as.get("client_id")
+        actor = act_as.get("actor")
+        if not client_id or not actor:
+            return None
+        return {
+            "client_id": str(client_id),
+            "actor": str(actor),
+            "issued_at": act_as.get("issued_at"),
+        }
+
+    def _build_payload(
+        self, subject: str, claims: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         now = int(time.time())
         payload = {
             "sub": subject,
@@ -55,7 +101,10 @@ class JWTHandler:
             payload["iss"] = self.config.issuer
         if claims:
             payload.update(claims)
+        return payload
 
+    def _encode(self, payload: Dict[str, Any]) -> str:
+        header = {"alg": self.config.algorithm, "typ": "JWT"}
         header_b64 = _b64url_encode(json.dumps(header, separators=(",", ":")).encode())
         payload_b64 = _b64url_encode(
             json.dumps(payload, separators=(",", ":")).encode()

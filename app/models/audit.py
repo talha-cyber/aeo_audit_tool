@@ -1,5 +1,15 @@
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from app.db.base_class import Base
 
@@ -10,7 +20,21 @@ class Client(Base):
     industry = Column(String)
     product_type = Column(String)
     competitors = Column(JSON)
+    is_internal = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=expression.false(),
+    )
+    admin_settings = Column(JSON, nullable=False, default=dict, server_default="{}")
     audits = relationship("AuditRun", back_populates="client")
+
+    def __init__(self, **kwargs):
+        if kwargs.get("is_internal") is None:
+            kwargs["is_internal"] = False
+        if "admin_settings" not in kwargs or kwargs.get("admin_settings") is None:
+            kwargs["admin_settings"] = {}
+        super().__init__(**kwargs)
 
 
 class AuditRun(Base):

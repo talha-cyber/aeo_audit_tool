@@ -135,6 +135,7 @@ export const PersonaCatalogSchema = z.object({
 export const PersonaComposePayloadSchema = z.object({
   mode: PersonaModeSchema,
   ownerId: z.string().optional(),
+  clientId: z.string().optional(),
   voice: z.string().optional(),
   role: z.string().optional(),
   driver: z.string().optional(),
@@ -161,7 +162,8 @@ export const PersonaUpdatePayloadSchema = PersonaComposePayloadSchema.extend({
 export const PersonaClonePayloadSchema = z.object({
   ownerId: z.string().optional(),
   mode: PersonaModeSchema,
-  name: z.string().optional()
+  name: z.string().optional(),
+  clientId: z.string().optional()
 });
 
 export const WidgetSchema = z.object({
@@ -233,6 +235,29 @@ export const LaunchTestRunResponseSchema = z.object({
   run: AuditRunSchema
 });
 
+export const CreateAuditRunPayloadSchema = z.object({
+  name: z.string().min(1).max(255),
+  personaIds: z.array(z.string()).min(1),
+  platforms: z.array(z.string()).min(1),
+  questionCount: z.number().min(1).max(500).optional().default(48),
+  clientId: z.string().optional()
+});
+
+export const CreateAuditRunResponseSchema = z.object({
+  run: AuditRunSchema
+});
+
+export const ImpersonationResponseSchema = z.object({
+  token: z.string(),
+  expiresAt: z.string(),
+});
+
+export const AdminActionResponseSchema = z.object({
+  status: z.string(),
+  action: z.string(),
+  details: z.record(z.unknown()).optional().default({})
+});
+
 export type AuditRun = z.infer<typeof AuditRunSchema>;
 export type AuditSummary = z.infer<typeof AuditSummarySchema>;
 export type ReportSummary = z.infer<typeof ReportSummarySchema>;
@@ -253,3 +278,7 @@ export type ComparisonMatrix = z.infer<typeof ComparisonMatrixSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type LaunchTestRunPayload = z.infer<typeof LaunchTestRunPayloadSchema>;
 export type LaunchTestRunResponse = z.infer<typeof LaunchTestRunResponseSchema>;
+export type CreateAuditRunPayload = z.infer<typeof CreateAuditRunPayloadSchema>;
+export type CreateAuditRunResponse = z.infer<typeof CreateAuditRunResponseSchema>;
+export type ImpersonationResponse = z.infer<typeof ImpersonationResponseSchema>;
+export type AdminActionResponse = z.infer<typeof AdminActionResponseSchema>;

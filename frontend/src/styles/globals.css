@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 @import './tokens.css';
+@import './themes/paleolithic-theme.css';
+@import './themes/typography.css';
 
 html,
 body {
@@ -10,7 +12,7 @@ body {
 }
 
 body {
-  font-family: theme('fontFamily.sans');
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;

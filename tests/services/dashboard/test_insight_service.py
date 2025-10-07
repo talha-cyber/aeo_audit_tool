@@ -1,6 +1,8 @@
 import pytest
 
-pytest.importorskip("pydantic", reason="pydantic wheels unavailable on this interpreter")
+pytest.importorskip(
+    "pydantic", reason="pydantic wheels unavailable on this interpreter"
+)
 
 from app.services.dashboard import insight_service
 

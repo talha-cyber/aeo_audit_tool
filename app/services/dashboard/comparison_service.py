@@ -5,16 +5,21 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.dashboard_schemas import ComparisonMatrixView, ComparisonSignalView
+from app.models.audit import AuditRun, Client
 from app.models.response import Response
 
 __all__ = ["get_comparison_matrix"]
 
 
-def get_comparison_matrix(db: Session | None = None) -> ComparisonMatrixView:
+def get_comparison_matrix(
+    db: Session | None = None,
+    *,
+    exclude_internal: bool = False,
+) -> ComparisonMatrixView:
     """Aggregate share-of-voice metrics into a comparison matrix."""
 
     if db is None:
@@ -25,7 +30,7 @@ def get_comparison_matrix(db: Session | None = None) -> ComparisonMatrixView:
     brand_platforms: Dict[str, set[str]] = defaultdict(set)
     all_platforms: set[str] = set()
 
-    for mentions, platform in _iter_mentions(db):
+    for mentions, platform in _iter_mentions(db, exclude_internal=exclude_internal):
         all_platforms.add(platform)
         for brand, frequency, sentiment in mentions:
             if frequency <= 0:
@@ -42,9 +47,13 @@ def get_comparison_matrix(db: Session | None = None) -> ComparisonMatrixView:
     total_volume = sum(brand_totals.values()) or 1.0
     total_platforms = max(len(all_platforms), 1)
 
-    share_of_voice = [round(brand_totals[name] / total_volume, 4) for name in competitors]
+    share_of_voice = [
+        round(brand_totals[name] / total_volume, 4) for name in competitors
+    ]
     positive_ratio = [
-        round(brand_positive.get(name, 0.0) / brand_totals[name], 4) if brand_totals[name] else 0.0
+        round(brand_positive.get(name, 0.0) / brand_totals[name], 4)
+        if brand_totals[name]
+        else 0.0
         for name in competitors
     ]
     platform_coverage = [
@@ -60,10 +69,17 @@ def get_comparison_matrix(db: Session | None = None) -> ComparisonMatrixView:
     return ComparisonMatrixView(competitors=competitors, signals=signals)
 
 
-def _iter_mentions(db: Session) -> Iterable[Tuple[List[Tuple[str, float, str]], str]]:
-    statement = select(Response.brand_mentions, Response.platform).where(
-        Response.brand_mentions.isnot(None)
+def _iter_mentions(
+    db: Session, *, exclude_internal: bool
+) -> Iterable[Tuple[List[Tuple[str, float, str]], str]]:
+    statement = select(Response.brand_mentions, Response.platform).join(
+        Response.audit_run
     )
+    if exclude_internal:
+        statement = statement.outerjoin(AuditRun.client).where(
+            or_(Client.id.is_(None), Client.is_internal.is_(False))
+        )
+    statement = statement.where(Response.brand_mentions.isnot(None))
     for payload, platform in db.execute(statement):
         normalized = _normalize_mentions(payload)
         if normalized:

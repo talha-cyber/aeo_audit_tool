@@ -19,6 +19,7 @@ class PersonaRecord:
 
     id: UUID
     owner_id: str
+    client_id: str
     mode: str
     name: str
     segment: str
@@ -44,18 +45,24 @@ class PersonaLibraryStore:
         return datetime.now(timezone.utc)
 
     def list(
-        self, owner_id: str, *, mode: Optional[str] = None
+        self, owner_id: str, *, client_id: str, mode: Optional[str] = None
     ) -> List[PersonaRecord]:
-        """Return persona records for an owner, filtered by mode when provided."""
-        query = self._db.query(PersonaModel).filter(PersonaModel.owner_id == owner_id)
+        """Return persona records scoped to owner and client, optionally filtered by mode."""
+        query = (
+            self._db.query(PersonaModel)
+            .filter(PersonaModel.owner_id == owner_id)
+            .filter(PersonaModel.client_id == client_id)
+        )
         if mode:
             query = query.filter(PersonaModel.mode == mode)
         return [self._from_model(model) for model in query.all()]
 
-    def get(self, owner_id: str, persona_id: UUID) -> Optional[PersonaRecord]:
+    def get(
+        self, owner_id: str, client_id: str, persona_id: UUID
+    ) -> Optional[PersonaRecord]:
         """Fetch a persona record for the given owner by identifier."""
         model = self._db.get(PersonaModel, persona_id)
-        if model and model.owner_id == owner_id:
+        if model and model.owner_id == owner_id and model.client_id == client_id:
             return self._from_model(model)
         return None
 
@@ -77,10 +84,10 @@ class PersonaLibraryStore:
         self._db.refresh(model)
         return self._from_model(model)
 
-    def delete(self, owner_id: str, persona_id: UUID) -> bool:
+    def delete(self, owner_id: str, client_id: str, persona_id: UUID) -> bool:
         """Remove a persona from the store."""
         model = self._db.get(PersonaModel, persona_id)
-        if model and model.owner_id == owner_id:
+        if model and model.owner_id == owner_id and model.client_id == client_id:
             self._db.delete(model)
             self._db.commit()
             return True
@@ -90,6 +97,7 @@ class PersonaLibraryStore:
         self,
         *,
         owner_id: str,
+        client_id: str,
         mode: str,
         name: str,
         segment: str,
@@ -107,6 +115,7 @@ class PersonaLibraryStore:
         return PersonaRecord(
             id=uuid.uuid4(),
             owner_id=owner_id,
+            client_id=client_id,
             mode=mode,
             name=name,
             segment=segment,
@@ -132,6 +141,7 @@ class PersonaLibraryStore:
         return PersonaRecord(
             id=model.id,
             owner_id=model.owner_id,
+            client_id=model.client_id,
             mode=model.mode,
             name=model.name,
             segment=model.segment,

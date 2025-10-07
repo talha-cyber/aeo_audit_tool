@@ -5,16 +5,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.v1.dashboard_schemas import AuditOwnerView, AuditSummaryView
+from app.models.audit import Client
 from app.models.scheduling import JobExecution, JobType, ScheduledJob
-from app.services.dashboard.utils import cron_to_label, safe_ratio
 from app.services.dashboard.static_data import default_audit_programs
+from app.services.dashboard.utils import cron_to_label, safe_ratio
 
 
-def list_audit_programs(db: Session, *, limit: Optional[int] = None) -> List[AuditSummaryView]:
+def list_audit_programs(
+    db: Session,
+    *,
+    limit: Optional[int] = None,
+    exclude_internal: bool = False,
+) -> List[AuditSummaryView]:
     """Return configured audit programs with computed health metadata."""
 
     query = (
@@ -22,9 +28,14 @@ def list_audit_programs(db: Session, *, limit: Optional[int] = None) -> List[Aud
         .options(
             selectinload(ScheduledJob.executions).selectinload(JobExecution.audit_run)
         )
+        .options(selectinload(ScheduledJob.client))
         .filter(ScheduledJob.job_type.in_({JobType.AUDIT}))
         .order_by(desc(ScheduledJob.created_at))
     )
+
+    if exclude_internal:
+        query = query.outerjoin(ScheduledJob.client)
+        query = query.filter(or_(Client.id.is_(None), Client.is_internal.is_(False)))
 
     if limit:
         query = query.limit(limit)
@@ -69,7 +80,9 @@ def list_audit_programs(db: Session, *, limit: Optional[int] = None) -> List[Aud
     return hydrate_from_static()
 
 
-def _coalesce_owner_name(owner_payload: Optional[dict], fallback: Optional[str]) -> Optional[str]:
+def _coalesce_owner_name(
+    owner_payload: Optional[dict], fallback: Optional[str]
+) -> Optional[str]:
     if isinstance(owner_payload, dict):
         name = owner_payload.get("name") or owner_payload.get("displayName")
         if name:
@@ -122,7 +135,11 @@ def _resolve_platforms(payload: dict) -> List[str]:
     if isinstance(platforms, list):
         return [str(p) for p in platforms if isinstance(p, str)]
 
-    config_platforms = payload.get("config", {}).get("platforms") if isinstance(payload, dict) else None
+    config_platforms = (
+        payload.get("config", {}).get("platforms")
+        if isinstance(payload, dict)
+        else None
+    )
     if isinstance(config_platforms, list):
         return [str(p) for p in config_platforms if isinstance(p, str)]
 
@@ -132,13 +149,17 @@ def _resolve_platforms(payload: dict) -> List[str]:
 def _infer_last_run(executions: Iterable[JobExecution]) -> Optional[datetime]:
     latest: Optional[JobExecution] = None
     for execution in executions:
-        candidate = execution.completed_at or execution.started_at or execution.scheduled_time
+        candidate = (
+            execution.completed_at or execution.started_at or execution.scheduled_time
+        )
         if not candidate:
             continue
         if not latest:
             latest = execution
             continue
-        latest_candidate = latest.completed_at or latest.started_at or latest.scheduled_time
+        latest_candidate = (
+            latest.completed_at or latest.started_at or latest.scheduled_time
+        )
         if latest_candidate is None or candidate > latest_candidate:
             latest = execution
 

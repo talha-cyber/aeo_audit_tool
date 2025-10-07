@@ -3,18 +3,27 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.v1.dashboard_schemas import AuditIssueView, AuditRunProgressView, AuditRunView
-from app.models.audit import AuditRun
+from app.api.v1.dashboard_schemas import (
+    AuditIssueView,
+    AuditRunProgressView,
+    AuditRunView,
+)
+from app.models.audit import AuditRun, Client
 
 __all__ = ["list_runs", "get_run", "map_audit_run_to_view"]
 
 
-def list_runs(db: Session, *, limit: Optional[int] = None) -> List[AuditRunView]:
+def list_runs(
+    db: Session,
+    *,
+    limit: Optional[int] = None,
+    exclude_internal: bool = False,
+) -> List[AuditRunView]:
     """Return recent audit runs with progress data."""
 
     query = (
@@ -22,6 +31,12 @@ def list_runs(db: Session, *, limit: Optional[int] = None) -> List[AuditRunView]
         .options(selectinload(AuditRun.client))
         .order_by(desc(AuditRun.started_at), desc(AuditRun.completed_at))
     )
+    if exclude_internal:
+        query = (
+            query.outerjoin(AuditRun.client)
+            .filter(or_(Client.id.is_(None), Client.is_internal.is_(False)))
+            .distinct()
+        )
     if limit:
         query = query.limit(limit)
 
@@ -81,7 +96,9 @@ def _extract_progress(run: AuditRun) -> AuditRunProgressView:
     if isinstance(progress_data, dict):
         done = progress_data.get("questions_processed", done)
         total = progress_data.get("total_questions", total)
-        updated_at = _parse_datetime(progress_data.get("updated_at") or progress_data.get("last_updated"))
+        updated_at = _parse_datetime(
+            progress_data.get("updated_at") or progress_data.get("last_updated")
+        )
 
     return AuditRunProgressView(done=done, total=total or 0, updated_at=updated_at)
 

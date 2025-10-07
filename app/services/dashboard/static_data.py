@@ -91,9 +91,21 @@ def default_personas() -> List[Dict[str, Any]]:
             "priority": "primary",
             "key_need": "Proves ROI of AI presence to clients.",
             "journey_stage": [
-                {"stage": "Discover", "question": "Who is leading AI visibility?", "coverage": 0.82},
-                {"stage": "Evaluate", "question": "What keywords drive conversions?", "coverage": 0.67},
-                {"stage": "Decide", "question": "Which assets to amplify?", "coverage": 0.54},
+                {
+                    "stage": "Discover",
+                    "question": "Who is leading AI visibility?",
+                    "coverage": 0.82,
+                },
+                {
+                    "stage": "Evaluate",
+                    "question": "What keywords drive conversions?",
+                    "coverage": 0.67,
+                },
+                {
+                    "stage": "Decide",
+                    "question": "Which assets to amplify?",
+                    "coverage": 0.54,
+                },
             ],
         },
         {
@@ -103,8 +115,16 @@ def default_personas() -> List[Dict[str, Any]]:
             "priority": "secondary",
             "key_need": "Keeps clients confident during QBRs.",
             "journey_stage": [
-                {"stage": "Discover", "question": "Where are we falling behind?", "coverage": 0.48},
-                {"stage": "Evaluate", "question": "Which competitors trend up?", "coverage": 0.41},
+                {
+                    "stage": "Discover",
+                    "question": "Where are we falling behind?",
+                    "coverage": 0.48,
+                },
+                {
+                    "stage": "Evaluate",
+                    "question": "Which competitors trend up?",
+                    "coverage": 0.41,
+                },
             ],
         },
     ]
@@ -112,8 +132,18 @@ def default_personas() -> List[Dict[str, Any]]:
 
 def default_widgets() -> List[Dict[str, Any]]:
     return [
-        {"id": "widget-1", "name": "AEO Heatmap", "preview": "9×9 matrix", "status": "draft"},
-        {"id": "widget-2", "name": "Weekly Signal Digest", "preview": "Email embed", "status": "published"},
+        {
+            "id": "widget-1",
+            "name": "AEO Heatmap",
+            "preview": "9×9 matrix",
+            "status": "draft",
+        },
+        {
+            "id": "widget-2",
+            "name": "Weekly Signal Digest",
+            "preview": "Email embed",
+            "status": "published",
+        },
     ]
 
 
@@ -125,8 +155,18 @@ def default_settings() -> Dict[str, Any]:
             "tone": "Measured and confident",
         },
         "members": [
-            {"id": "member-1", "name": "Jamie", "role": "Admin", "email": "jamie@agency.com"},
-            {"id": "member-2", "name": "Morgan", "role": "Editor", "email": "morgan@agency.com"},
+            {
+                "id": "member-1",
+                "name": "Jamie",
+                "role": "Admin",
+                "email": "jamie@agency.com",
+            },
+            {
+                "id": "member-2",
+                "name": "Morgan",
+                "role": "Editor",
+                "email": "morgan@agency.com",
+            },
         ],
         "billing": {"plan": "Agency Pro", "renewsOn": "2025-09-15T00:00:00+00:00"},
         "integrations": [

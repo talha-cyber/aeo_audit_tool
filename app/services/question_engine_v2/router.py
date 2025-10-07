@@ -14,11 +14,12 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_API_KEY_LOOKUP: Dict[str, str] = {
+_API_KEY_LOOKUP: Dict[str, Optional[str]] = {
     "openai": settings.OPENAI_API_KEY,
     "anthropic": settings.ANTHROPIC_API_KEY,
     "perplexity": settings.PERPLEXITY_API_KEY,
-    "google_ai": settings.GOOGLE_AI_API_KEY,
+    "google_ai": getattr(settings, "GOOGLE_AI_API_KEY", None)
+    or getattr(settings, "GOOGLE_API_KEY", None),
 }
 
 

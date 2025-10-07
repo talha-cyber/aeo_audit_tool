@@ -325,12 +325,31 @@ class AuditProcessor:
                 selected_categories=config.get("question_categories", []),
             )
 
+            personas_config = config.get("personas") or []
+            persona_mode = config.get("persona_mode") or PersonaMode.B2C.value
+            persona_context = {
+                "mode": persona_mode,
+                "voices": [p.get("voice") for p in personas_config if p.get("voice")],
+                "overrides": [
+                    {
+                        "role": p.get("role"),
+                        "driver": p.get("driver"),
+                        "contexts": p.get("context_keys") or p.get("contexts") or [],
+                        "voice": p.get("voice"),
+                    }
+                    for p in personas_config
+                    if p.get("role") and p.get("driver")
+                ],
+            }
+
             return {
                 "client": client,
                 "target_brands": target_brands,
                 "platforms": available_platforms,
                 "categories": config.get("question_categories", []),
                 "language": config.get("language", "en"),
+                "personas": persona_context,
+                "persona_details": personas_config,
             }
 
     async def _generate_questions(
@@ -499,33 +518,65 @@ class AuditProcessor:
     ) -> None:
         """Persist generated questions to database"""
         with add_stage_context("question_persistence"):
-            question_records = []
+            question_records: List[question_models.Question] = []
 
-        for question_data in questions:
-            serialized_metadata = _to_jsonable(question_data.get("metadata", {}))
-            question_record = question_models.Question(
-                id=str(uuid.uuid4()),
-                audit_run_id=audit_run_id,
-                question_text=question_data["question"],
-                category=question_data.get("category", "unknown"),
-                question_type=question_data.get("question_type", "unknown"),
-                priority_score=question_data.get("priority_score", 0.0),
-                target_brand=question_data.get("target_brand"),
-                provider=question_data.get("provider", "question_engine"),
-                question_metadata=serialized_metadata,
-            )
-            # Propagate generated question ID back to caller so downstream processing
-            # can associate responses with persisted questions.
-            question_data["id"] = question_record.id
-            question_records.append(question_record)
+            for question_data in questions:
+                metadata = question_data.get("metadata", {}) or {}
+                serialized_metadata = _to_jsonable(metadata)
+                persona_metadata = metadata.get("persona") or {}
 
-            self.db.bulk_save_objects(question_records)
-            self.db.commit()
+                question_record = question_models.Question(
+                    id=str(uuid.uuid4()),
+                    audit_run_id=audit_run_id,
+                    question_text=question_data["question"],
+                    category=question_data.get("category", "unknown"),
+                    question_type=question_data.get("question_type", "unknown"),
+                    priority_score=question_data.get("priority_score", 0.0),
+                    target_brand=question_data.get("target_brand"),
+                    provider=question_data.get("provider", "question_engine"),
+                    question_metadata=serialized_metadata,
+                )
 
-            contextual_logger.info(
-                f"Persisted {len(question_records)} questions to database"
-            )
-            self.metrics.increment_database_operation("bulk_insert", "questions")
+                persona_identifier = persona_metadata.get("id") or persona_metadata.get(
+                    "name"
+                )
+                if persona_identifier:
+                    question_record.persona = str(persona_identifier)
+                if persona_metadata.get("role"):
+                    question_record.role = persona_metadata["role"]
+                if persona_metadata.get("driver"):
+                    question_record.driver = persona_metadata["driver"]
+                if persona_metadata.get("emotional_anchor"):
+                    question_record.emotional_anchor = persona_metadata[
+                        "emotional_anchor"
+                    ]
+
+                context_stage = persona_metadata.get("context_stage")
+                if not context_stage:
+                    contexts = persona_metadata.get("contexts") or []
+                    if contexts:
+                        context_stage = contexts[0]
+                if context_stage:
+                    question_record.context_stage = context_stage
+
+                if metadata.get("provider_version"):
+                    question_record.provider_version = metadata["provider_version"]
+
+                # Propagate generated question ID back to caller so downstream processing
+                # can associate responses with persisted questions.
+                question_data["id"] = question_record.id
+                question_records.append(question_record)
+
+            if question_records:
+                self.db.bulk_save_objects(question_records)
+                self.db.commit()
+
+                contextual_logger.info(
+                    "Persisted questions to database",
+                    count=len(question_records),
+                    audit_run_id=audit_run_id,
+                )
+                self.metrics.increment_database_operation("bulk_insert", "questions")
 
     async def _process_questions_batched(
         self,

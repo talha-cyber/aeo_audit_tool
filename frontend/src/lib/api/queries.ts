@@ -6,6 +6,7 @@ import {
   AuditRunDetail,
   AuditSummary,
   LaunchTestRunPayload,
+  CreateAuditRunPayload,
   ComparisonMatrix,
   Insight,
   Persona,
@@ -22,8 +23,25 @@ import {
 } from './schemas';
 
 const useMocks = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
+const fallbackOwnerId = process.env.NEXT_PUBLIC_DASHBOARD_USER_ID ?? 'demo-user';
 
 const client = useMocks ? mockClient : apiClient;
+
+const shouldFallbackToMock = (error: unknown) => {
+  if (useMocks) {
+    return false;
+  }
+  if (error && typeof error === 'object' && 'status' in error && typeof (error as { status?: number }).status === 'number') {
+    const status = (error as { status?: number }).status ?? 0;
+    return status === 0 || status >= 500;
+  }
+  return true;
+};
+
+const ensureOwnerId = <T extends { ownerId?: string }>(payload: T) => ({
+  ...payload,
+  ownerId: payload.ownerId ?? fallbackOwnerId
+});
 
 export function useAuditSummaries() {
   return useQuery<AuditSummary[], Error>({
@@ -73,8 +91,17 @@ export function useInsights() {
 
 export function usePersonas(mode: PersonaMode = 'b2c') {
   return useQuery<Persona[], Error>({
-    queryKey: ['personas', mode],
-    queryFn: () => client.personas(mode)
+    queryKey: ['personas', mode, fallbackOwnerId],
+    queryFn: async () => {
+      try {
+        return await client.personas(mode, fallbackOwnerId);
+      } catch (error) {
+        if (shouldFallbackToMock(error)) {
+          return mockClient.personas(mode, fallbackOwnerId);
+        }
+        throw error;
+      }
+    }
   });
 }
 
@@ -91,18 +118,37 @@ export function useCreatePersona() {
 
   return useMutation<PersonaLibraryEntry, Error, PersonaComposePayload>({
     mutationKey: ['createPersona'],
-    mutationFn: (payload) => client.createPersona(payload),
+    mutationFn: async (payload) => {
+      const enriched = ensureOwnerId(payload);
+      try {
+        return await client.createPersona(enriched);
+      } catch (error) {
+        if (shouldFallbackToMock(error)) {
+          return mockClient.createPersona(enriched);
+        }
+        throw error;
+      }
+    },
     onSuccess: (persona, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['personas', variables.mode] });
-      queryClient.invalidateQueries({ queryKey: ['personaLibrary', variables.mode] });
+      queryClient.invalidateQueries({ queryKey: ['personas', variables.mode, fallbackOwnerId] });
+      queryClient.invalidateQueries({ queryKey: ['personaLibrary', variables.mode, fallbackOwnerId] });
     }
   });
 }
 
 export function usePersonaLibrary(mode: PersonaMode = 'b2c') {
   return useQuery<PersonaLibraryResponse, Error>({
-    queryKey: ['personaLibrary', mode],
-    queryFn: () => client.personaLibrary(mode),
+    queryKey: ['personaLibrary', mode, fallbackOwnerId],
+    queryFn: async () => {
+      try {
+        return await client.personaLibrary(mode, fallbackOwnerId);
+      } catch (error) {
+        if (shouldFallbackToMock(error)) {
+          return mockClient.personaLibrary(mode, fallbackOwnerId);
+        }
+        throw error;
+      }
+    },
     enabled: Boolean(mode)
   });
 }
@@ -113,11 +159,21 @@ export function useUpdatePersona() {
   return useMutation<PersonaLibraryEntry, Error, { personaId: string; payload: PersonaUpdatePayload }>(
     {
       mutationKey: ['updatePersona'],
-      mutationFn: ({ personaId, payload }) => client.updatePersona(personaId, payload),
+      mutationFn: async ({ personaId, payload }) => {
+        const enriched = ensureOwnerId(payload);
+        try {
+          return await client.updatePersona(personaId, enriched);
+        } catch (error) {
+          if (shouldFallbackToMock(error)) {
+            return mockClient.updatePersona(personaId, enriched);
+          }
+          throw error;
+        }
+      },
       onSuccess: (persona, variables) => {
         const { payload } = variables;
-        queryClient.invalidateQueries({ queryKey: ['personas', payload.mode] });
-        queryClient.invalidateQueries({ queryKey: ['personaLibrary', payload.mode] });
+        queryClient.invalidateQueries({ queryKey: ['personas', payload.mode, fallbackOwnerId] });
+        queryClient.invalidateQueries({ queryKey: ['personaLibrary', payload.mode, fallbackOwnerId] });
       }
     }
   );
@@ -129,11 +185,21 @@ export function useClonePersona() {
   return useMutation<PersonaLibraryEntry, Error, { personaId: string; payload: PersonaClonePayload }>(
     {
       mutationKey: ['clonePersona'],
-      mutationFn: ({ personaId, payload }) => client.clonePersona(personaId, payload),
+      mutationFn: async ({ personaId, payload }) => {
+        const enriched = ensureOwnerId(payload);
+        try {
+          return await client.clonePersona(personaId, enriched);
+        } catch (error) {
+          if (shouldFallbackToMock(error)) {
+            return mockClient.clonePersona(personaId, enriched);
+          }
+          throw error;
+        }
+      },
       onSuccess: (persona, variables) => {
         const { payload } = variables;
-        queryClient.invalidateQueries({ queryKey: ['personas', payload.mode] });
-        queryClient.invalidateQueries({ queryKey: ['personaLibrary', payload.mode] });
+        queryClient.invalidateQueries({ queryKey: ['personas', payload.mode, fallbackOwnerId] });
+        queryClient.invalidateQueries({ queryKey: ['personaLibrary', payload.mode, fallbackOwnerId] });
       }
     }
   );
@@ -145,10 +211,20 @@ export function useDeletePersona() {
   return useMutation<void, Error, { personaId: string; mode: PersonaMode }>(
     {
       mutationKey: ['deletePersona'],
-      mutationFn: ({ personaId }) => client.deletePersona(personaId),
+      mutationFn: async ({ personaId }) => {
+        try {
+          await client.deletePersona(personaId, fallbackOwnerId);
+        } catch (error) {
+          if (shouldFallbackToMock(error)) {
+            await mockClient.deletePersona(personaId, fallbackOwnerId);
+            return;
+          }
+          throw error;
+        }
+      },
       onSuccess: (_, variables) => {
-        queryClient.invalidateQueries({ queryKey: ['personas', variables.mode] });
-        queryClient.invalidateQueries({ queryKey: ['personaLibrary', variables.mode] });
+        queryClient.invalidateQueries({ queryKey: ['personas', variables.mode, fallbackOwnerId] });
+        queryClient.invalidateQueries({ queryKey: ['personaLibrary', variables.mode, fallbackOwnerId] });
       }
     }
   );
@@ -181,6 +257,20 @@ export function useLaunchTestRun() {
   return useMutation<AuditRun, Error, LaunchTestRunPayload>({
     mutationKey: ['launchTestRun'],
     mutationFn: (payload) => client.launchTestRun(payload),
+    onSuccess: (run) => {
+      queryClient.invalidateQueries({ queryKey: ['auditRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['auditSummaries'] });
+      queryClient.invalidateQueries({ queryKey: ['auditRun', run.id] });
+    }
+  });
+}
+
+export function useCreateAuditRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AuditRun, Error, CreateAuditRunPayload>({
+    mutationKey: ['createAuditRun'],
+    mutationFn: (payload) => apiClient.createAuditRun(payload),
     onSuccess: (run) => {
       queryClient.invalidateQueries({ queryKey: ['auditRuns'] });
       queryClient.invalidateQueries({ queryKey: ['auditSummaries'] });

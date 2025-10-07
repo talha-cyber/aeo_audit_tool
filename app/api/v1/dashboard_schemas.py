@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.question_engine_v2.schemas import PersonaMode
 
@@ -110,6 +110,7 @@ class PersonaLibraryEntryView(PersonaView):
     driver: str
     voice: Optional[str] = None
     context_keys: List[str] = Field(alias="contextKeys")
+    client_id: str = Field(alias="clientId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -126,9 +127,7 @@ class PersonaCatalogRoleView(BaseApiModel):
 class PersonaCatalogDriverView(BaseApiModel):
     key: str
     label: str
-    emotional_anchor: Optional[str] = Field(
-        default=None, alias="emotionalAnchor"
-    )
+    emotional_anchor: Optional[str] = Field(default=None, alias="emotionalAnchor")
     weight: Optional[float] = None
 
 
@@ -156,6 +155,7 @@ class PersonaCatalogView(BaseApiModel):
 class PersonaComposeRequest(BaseApiModel):
     mode: PersonaMode = PersonaMode.B2C
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
+    client_id: Optional[str] = Field(default=None, alias="clientId")
     voice: Optional[str] = None
     role: Optional[str] = None
     driver: Optional[str] = None
@@ -171,6 +171,7 @@ class PersonaComposeRequest(BaseApiModel):
 
 class PersonaUpdateRequest(BaseApiModel):
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
+    client_id: Optional[str] = Field(default=None, alias="clientId")
     mode: PersonaMode = PersonaMode.B2C
     voice: Optional[str] = None
     role: Optional[str] = None
@@ -187,6 +188,7 @@ class PersonaUpdateRequest(BaseApiModel):
 
 class PersonaCloneRequest(BaseApiModel):
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
+    client_id: Optional[str] = Field(default=None, alias="clientId")
     mode: PersonaMode = PersonaMode.B2C
     name: Optional[str] = None
 
@@ -214,7 +216,7 @@ class ComparisonMatrixView(BaseApiModel):
 
 class BrandingSettingsView(BaseApiModel):
     primary_color: str = Field(alias="primaryColor")
-    logo_url: Optional[HttpUrl] = Field(default=None, alias="logoUrl")
+    logo_url: Optional[str] = Field(default=None, alias="logoUrl")
     tone: str
 
 
@@ -234,7 +236,6 @@ class IntegrationView(BaseApiModel):
     id: str
     name: str
     connected: bool
-
 
 
 class AuditOwnerView(BaseApiModel):
@@ -269,6 +270,24 @@ class LaunchTestRunResponse(BaseApiModel):
     run: AuditRunView
 
 
+class CreateAuditRunRequest(BaseApiModel):
+    """Request to create a real audit run with persona and platform selection."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    persona_ids: List[str] = Field(alias="personaIds", min_items=1)
+    platforms: List[str] = Field(min_items=1)
+    question_count: Optional[int] = Field(
+        default=48, alias="questionCount", ge=1, le=500
+    )
+    client_id: Optional[str] = Field(default=None, alias="clientId")
+
+
+class CreateAuditRunResponse(BaseApiModel):
+    """Response after creating audit run."""
+
+    run: AuditRunView
+
+
 __all__ = [
     "AuditIssueView",
     "AuditRunProgressView",
@@ -293,6 +312,8 @@ __all__ = [
     "AuditSummaryView",
     "LaunchTestRunRequest",
     "LaunchTestRunResponse",
+    "CreateAuditRunRequest",
+    "CreateAuditRunResponse",
     "AuditRunStatus",
     "IssueSeverity",
     "SentimentLabel",

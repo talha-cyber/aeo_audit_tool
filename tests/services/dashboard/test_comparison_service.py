@@ -60,14 +60,22 @@ def test_comparison_matrix_from_responses(db_engine: Engine, db_session) -> None
 
         assert matrix.competitors[0] == "Primary Brand"
         assert len(matrix.signals) == 3
-        sov_signal = next(signal for signal in matrix.signals if signal.label == "Share of Voice")
+        sov_signal = next(
+            signal for signal in matrix.signals if signal.label == "Share of Voice"
+        )
         assert round(sum(sov_signal.weights), 4) == 1.0
 
-        positive_signal = next(signal for signal in matrix.signals if signal.label == "Positive Sentiment")
-        primary_positive = positive_signal.weights[matrix.competitors.index("Primary Brand")]
+        positive_signal = next(
+            signal for signal in matrix.signals if signal.label == "Positive Sentiment"
+        )
+        primary_positive = positive_signal.weights[
+            matrix.competitors.index("Primary Brand")
+        ]
         assert primary_positive > 0.0
 
-        coverage_signal = next(signal for signal in matrix.signals if signal.label == "Platform Coverage")
+        coverage_signal = next(
+            signal for signal in matrix.signals if signal.label == "Platform Coverage"
+        )
         assert coverage_signal.weights[matrix.competitors.index("Primary Brand")] == 1.0
     finally:
         _drop_schema(db_engine)
@@ -77,3 +85,60 @@ def test_comparison_matrix_fallback_without_session() -> None:
     matrix = get_comparison_matrix(None)
     assert matrix.competitors
     assert matrix.signals
+
+
+def test_comparison_matrix_excludes_internal(db_engine: Engine, db_session) -> None:
+    _ensure_schema(db_engine)
+    try:
+        internal = Client(id="client-internal", name="Internal", is_internal=True)
+        external = Client(id="client-external", name="External", is_internal=False)
+        run_internal = AuditRun(
+            id="run-internal",
+            client=internal,
+            status="completed",
+            config={},
+        )
+        run_external = AuditRun(
+            id="run-external",
+            client=external,
+            status="completed",
+            config={},
+        )
+        response_internal = Response(
+            id="resp-internal",
+            audit_run=run_internal,
+            question_id="q1",
+            platform="openai",
+            response_text="",
+            raw_response={},
+            brand_mentions=[
+                {"brand": "Internal", "frequency": 5, "sentiment": "positive"}
+            ],
+        )
+        response_external = Response(
+            id="resp-external",
+            audit_run=run_external,
+            question_id="q2",
+            platform="claude",
+            response_text="",
+            raw_response={},
+            brand_mentions=[
+                {"brand": "External", "frequency": 4, "sentiment": "positive"}
+            ],
+        )
+        db_session.add_all(
+            [
+                internal,
+                external,
+                run_internal,
+                run_external,
+                response_internal,
+                response_external,
+            ]
+        )
+        db_session.commit()
+
+        matrix = get_comparison_matrix(db_session, exclude_internal=True)
+        assert matrix.competitors == ["External"], matrix.competitors
+    finally:
+        _drop_schema(db_engine)

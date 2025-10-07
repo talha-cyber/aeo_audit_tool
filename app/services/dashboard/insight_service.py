@@ -17,7 +17,9 @@ logger = get_logger(__name__)
 __all__ = ["list_insights"]
 
 
-def list_insights(db: Session | None = None, *, limit: Optional[int] = None) -> List[InsightView]:
+def list_insights(
+    db: Session | None = None, *, limit: Optional[int] = None
+) -> List[InsightView]:
     """Return recent competitive insights for the dashboard feed."""
 
     views = _collect_central_intelligence_insights(limit=limit)

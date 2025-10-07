@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import time
 from typing import Optional
 
-
 _CRON_PRESETS = {
     "0 0 * * *": "Daily at 00:00",
     "0 9 * * *": "Daily at 09:00",

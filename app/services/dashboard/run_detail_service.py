@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from sqlalchemy.orm import Session, selectinload
 
@@ -62,7 +62,9 @@ def _build_question_views(run: AuditRun) -> List[AuditQuestionView]:
     return views
 
 
-def _select_primary_response(question: Question, fallback_responses: List[Response]) -> Optional[Response]:
+def _select_primary_response(
+    question: Question, fallback_responses: List[Response]
+) -> Optional[Response]:
     if question.responses:
         return question.responses[0]
     for response in fallback_responses:
@@ -83,7 +85,11 @@ def _extract_sentiment(response: Optional[Response]) -> SentimentLabel:
     if not response:
         return "neutral"
 
-    metadata = response.response_metadata if isinstance(response.response_metadata, dict) else {}
+    metadata = (
+        response.response_metadata
+        if isinstance(response.response_metadata, dict)
+        else {}
+    )
     sentinel = metadata.get("sentiment") or response.emotional_satisfaction
 
     if isinstance(sentinel, str):
@@ -123,7 +129,9 @@ def _extract_mentions(response: Optional[Response]) -> List[BrandMentionView]:
             normalized.append(
                 BrandMentionView(
                     brand=str(brand),
-                    frequency=int(details.get("count") or details.get("frequency") or 0),
+                    frequency=int(
+                        details.get("count") or details.get("frequency") or 0
+                    ),
                     sentiment=_sanitize_sentiment(details.get("sentiment")),
                 )
             )

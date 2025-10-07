@@ -15,7 +15,8 @@ import {
   PersonaMode,
   ReportSummary,
   Settings,
-  Widget
+  Widget,
+  ImpersonationResponse
 } from './schemas';
 
 const now = new Date();
@@ -105,6 +106,14 @@ const personaCatalogStore: Record<PersonaMode, PersonaCatalog> = {
   }
 };
 
+const cloneCatalog = (catalog: PersonaCatalog): PersonaCatalog => ({
+  mode: catalog.mode,
+  roles: catalog.roles.map((role) => ({ ...role })),
+  drivers: catalog.drivers.map((driver) => ({ ...driver })),
+  contexts: catalog.contexts.map((context) => ({ ...context })),
+  voices: catalog.voices.map((voice) => ({ ...voice, contexts: [...voice.contexts] }))
+});
+
 const defaultPersonaStore: Record<PersonaMode, Persona[]> = {
   b2c: [
     {
@@ -160,7 +169,10 @@ const defaultPersonaStore: Record<PersonaMode, Persona[]> = {
 const customPersonaStore: Record<string, Record<PersonaMode, PersonaLibraryEntry[]>> = {};
 
 const getPersonaCatalog = (mode: PersonaMode): PersonaCatalog =>
-  personaCatalogStore[mode] ?? personaCatalogStore.b2c;
+  cloneCatalog(personaCatalogStore[mode] ?? personaCatalogStore.b2c);
+
+export const getFallbackPersonaCatalog = (mode: PersonaMode): PersonaCatalog =>
+  getPersonaCatalog(mode);
 
 const ensurePersonaBucket = (ownerId: string, mode: PersonaMode): PersonaLibraryEntry[] => {
   const ownerStore = (customPersonaStore[ownerId] ??= {
@@ -176,7 +188,7 @@ const normalizeJourneyStage = (
   override?: Persona['journeyStage']
 ) => {
   if (override && override.length === contextLabels.length) {
-    return override.map((stage, index) => ({
+    return override.map((stage) => ({
       stage: stage.stage,
       question: stage.question ?? '',
       coverage: stage.coverage ?? presetCoverage ?? 0
@@ -479,16 +491,16 @@ const launchTestRun = async (payload: LaunchTestRunPayload): Promise<AuditRun> =
 };
 
 export const mockClient = {
-  auditSummaries: async (): Promise<AuditSummary[]> =>
+  auditSummaries: async (_options?: { excludeInternal?: boolean }): Promise<AuditSummary[]> =>
     auditSummariesData.map((summary) => ({
       ...summary,
       owner: { ...summary.owner },
       platforms: [...summary.platforms]
     })),
-  auditRuns: async (): Promise<AuditRun[]> => listRuns(),
+  auditRuns: async (_options?: { excludeInternal?: boolean }): Promise<AuditRun[]> => listRuns(),
   auditRun: async (runId: string): Promise<AuditRunDetail> => getRunDetail(runId),
   launchTestRun,
-  reportSummaries: async (): Promise<ReportSummary[]> => [
+  reportSummaries: async (_options?: { excludeInternal?: boolean }): Promise<ReportSummary[]> => [
     {
       id: 'report-81',
       title: 'Executive Summary — July',
@@ -610,7 +622,7 @@ export const mockClient = {
     { id: 'widget-2', name: 'Weekly Signal Digest', preview: 'Email embed', status: 'published' }
   ],
 
-  comparison: async (): Promise<ComparisonMatrix> => ({
+  comparison: async (_options?: { excludeInternal?: boolean }): Promise<ComparisonMatrix> => ({
     competitors: ['Primary Brand', 'Competitor X', 'Competitor Y'],
     signals: [
       { label: 'Awareness Share', weights: [0.62, 0.21, 0.17] },
@@ -638,5 +650,33 @@ export const mockClient = {
       { id: 'int-2', name: 'HubSpot', connected: false },
       { id: 'int-3', name: 'Google Drive', connected: true }
     ]
-  })
+  }),
+
+  security: {
+    impersonate: async (clientId: string): Promise<ImpersonationResponse> => ({
+      token: `mock-token-${clientId}`,
+      expiresAt: formatDate(new Date(Date.now() + 15 * 60 * 1000)),
+    }),
+  },
+  admin: {
+    auditAction: async (runId: string, payload: { action: string }) => ({
+      status: 'queued',
+      action: payload.action,
+      details: { runId },
+    }),
+    tenantAction: async (
+      clientId: string,
+      payload: { action: string; value?: string | null; platform?: string | null; enabled?: boolean | null; flag?: string | null }
+    ) => ({
+      status: 'ok',
+      action: payload.action,
+      details: {
+        clientId,
+        value: payload.value ?? null,
+        platform: payload.platform ?? null,
+        enabled: payload.enabled ?? null,
+        flag: payload.flag ?? null,
+      },
+    }),
+  },
 };

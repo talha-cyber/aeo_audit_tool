@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
+from app.api.v1 import admin as admin_routes
 from app.api.v1 import audits
 from app.api.v1 import dashboard as dashboard_routes
 from app.api.v1 import monitoring as monitoring_routes
@@ -61,6 +62,7 @@ app.add_middleware(AccessLogMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(audits.router, prefix="/api/v1")
+app.include_router(admin_routes.router, prefix="/api/v1")
 app.include_router(dashboard_routes.router, prefix="/api/v1")
 app.include_router(provider_health.router, prefix="/api/v1/providers")
 app.include_router(security_routes.router, prefix="/api/v1")

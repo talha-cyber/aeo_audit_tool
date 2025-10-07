@@ -5,16 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    JSON,
-    TIMESTAMP,
-    Column,
-    ForeignKey,
-    String,
-    Text,
-)
+from sqlalchemy import JSON, TIMESTAMP, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base
 
@@ -24,6 +16,7 @@ class Persona(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id = Column(String(255), nullable=False, index=True)
+    client_id = Column(String(255), ForeignKey("client.id"), nullable=False, index=True)
     mode = Column(String(50), nullable=False)
     name = Column(String(255), nullable=False)
     segment = Column(String(255))

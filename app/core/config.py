@@ -3,10 +3,24 @@ from __future__ import annotations
 
 import secrets
 import warnings
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import (
+    Field,
+    field_validator,
+    model_validator,
+)
+from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def parse_cors(v: Any) -> List[str]:
+    """Parse CORS origins from comma-separated string or list."""
+    if isinstance(v, str) and v:
+        return [i.strip() for i in v.split(",")]
+    if isinstance(v, (list, set)):
+        return v
+    return []
 
 
 class Settings(BaseSettings):
@@ -26,6 +40,11 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000"],
         description="Comma-delimited list of allowed origins",
     )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Project metadata
+    PROJECT_NAME: str = "AEO Audit Tool"
+    API_V1_STR: str = "/api/v1"
 
     # Database settings
     POSTGRES_USER: str = "postgres"
@@ -39,10 +58,11 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
 
     # AI Platform API keys
-    OPENAI_API_KEY: str = "dummy_key"
-    ANTHROPIC_API_KEY: str = "dummy_key"
-    PERPLEXITY_API_KEY: str = "dummy_key"
-    GOOGLE_AI_API_KEY: str = "dummy_key"
+    OPENAI_API_KEY: Optional[str] = Field(default=None, repr=False)
+    OPENAI_ORG_ID: Optional[str] = Field(default=None, repr=False)
+    ANTHROPIC_API_KEY: Optional[str] = Field(default=None, repr=False)
+    PERPLEXITY_API_KEY: Optional[str] = Field(default=None, repr=False)
+    GOOGLE_API_KEY: Optional[str] = Field(default=None, repr=False)
 
     # Celery settings
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
@@ -50,6 +70,9 @@ class Settings(BaseSettings):
 
     # Observability settings
     SENTRY_DSN: Optional[str] = None
+
+    # Runtime environment flags
+    RUNNING_IN_DOCKER: bool = False
 
     # Dynamic Question Engine settings
     DYNAMIC_Q_ENABLED: bool = True
@@ -103,14 +126,6 @@ class Settings(BaseSettings):
         """Construct the database URL from individual components."""
         return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
-    @field_validator("CORS_ALLOW_ORIGINS", mode="before")
-    @classmethod
-    def _split_origins(cls, value: str | List[str]) -> List[str]:
-        """Allow comma-separated strings for origins env var."""
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
-
     @model_validator(mode="after")
     def _ensure_secret_key(self) -> "Settings":
         """Guarantee SECRET_KEY is present in non-development environments."""
@@ -141,8 +156,45 @@ class Settings(BaseSettings):
                 )
         return self
 
+    @model_validator(mode="after")
+    def _adjust_service_hosts(self) -> "Settings":
+        """Resolve service hostnames when running outside of Docker."""
+        if not self.RUNNING_IN_DOCKER:
+            if self.POSTGRES_SERVER in {"db", "postgres"}:
+                self.POSTGRES_SERVER = "localhost"
+
+            if self.REDIS_HOST == "redis":
+                self.REDIS_HOST = "localhost"
+
+            if self.CELERY_BROKER_URL.startswith("redis://redis"):
+                self.CELERY_BROKER_URL = self.CELERY_BROKER_URL.replace(
+                    "redis://redis", "redis://localhost", 1
+                )
+            if self.CELERY_RESULT_BACKEND.startswith("redis://redis"):
+                self.CELERY_RESULT_BACKEND = self.CELERY_RESULT_BACKEND.replace(
+                    "redis://redis", "redis://localhost", 1
+                )
+        return self
+
+    @field_validator("CORS_ALLOW_ORIGINS", mode="before")
+    def _parse_cors(cls, v: Any) -> List[str]:
+        return parse_cors(v)
+
+    @field_validator("SECRET_KEY", mode="before")
+    def _validate_secret_key(cls, v: Optional[str], info: ValidationInfo) -> str:
+        if not v:
+            if info.data.get("SECRET_KEY_AUTO_GENERATED", False):
+                import secrets
+
+                return secrets.token_urlsafe(32)
+            raise ValueError("SECRET_KEY must be set")
+        return v
+
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
 
 

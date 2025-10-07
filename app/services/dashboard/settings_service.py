@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy.orm import Session
 
 from app.api.v1.dashboard_schemas import SettingsView
