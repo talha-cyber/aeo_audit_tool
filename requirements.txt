@@ -61,7 +61,7 @@ opentelemetry-instrumentation-requests>=0.46b0
 cryptography>=42.0.0
 
 # Security Analysis
-bandit==1.7.5
+bandit==1.8.6
 
 # Testing
 pytest==7.4.3
