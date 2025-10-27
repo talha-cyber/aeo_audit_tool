@@ -28,7 +28,7 @@ jobs:
           pytest -q --benchmark-only --benchmark-min-time=0.01 --benchmark-save=perf
 
       - name: Upload benchmark data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pytest-benchmark-data
           path: ./.benchmarks
